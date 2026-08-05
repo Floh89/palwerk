@@ -1,120 +1,37 @@
 import { loadState, saveState as persistState } from './storage.js';
 
-const defaultState = {
-  schemaVersion: 1,
-  profile: { playerLevel: '', world: '', goal: '', goalType: 'boss' },
-  pals: [], equipment: [], materials: [], bases: [],
-  updatedAt: null
-};
-
-const modules = [
-  ['team','Team Builder','Baubare Teams aus deinem Bestand'],
-  ['boss','Boss Planner','Lücken vor dem nächsten Kampf'],
-  ['material','Material Optimizer','Engpässe und nächste Farmaktion'],
-  ['breed','Zucht','Kürzester später bestätigter Zuchtpfad'],
-  ['farm','Farm','Basen und Arbeitsrollen strukturieren'],
-  ['disassembly','Disassembly','Zerlegen nur bei belegbarem Vorteil']
-];
-
-let state = await loadState(defaultState);
-let route = 'dashboard';
-const app = document.querySelector('#app');
-
-async function save() {
-  state.updatedAt = new Date().toISOString();
-  await persistState(state);
-}
-
-function readiness() {
-  return [state.profile.playerLevel, state.profile.goal, state.pals.length, state.equipment.length, state.materials.length, state.bases.length].filter(Boolean).length;
-}
-
-function decision() {
-  if (!state.profile.playerLevel) return ['Spielerlevel ergänzen','Nur erreichbare Technologien und Inhalte dürfen berücksichtigt werden.','bestand'];
-  if (!state.profile.goal) return ['Ziel festlegen','Ohne konkretes Ziel gibt es keine sinnvolle Optimierung.','bestand'];
-  if (!state.pals.length) return ['Pal-Bestand erfassen','PALWERK schlägt keine Pals vor, die du nicht besitzt.','bestand'];
-  if (state.profile.goalType === 'boss' && !state.equipment.length) return ['Kampfausrüstung erfassen','Boss-Planung ohne Waffen und Rüstung wäre unvollständig.','bestand'];
-  if (state.profile.goalType === 'farm' && !state.bases.length) return ['Erste Basis erfassen','Farm-Empfehlungen brauchen verfügbare Arbeitsplätze und Pals.','bestand'];
-  return [`${state.profile.goal} vorbereiten`,'Die Voraussetzungen sind erfasst. Öffne die Analyse der noch belegbaren Lücken.','optimieren'];
-}
-
-function dashboard() {
-  const [title,why,target] = decision();
-  return `<section class="hero"><div><p class="eyebrow">NÄCHSTER BESTER SCHRITT</p><h2>${esc(title)}</h2><p>${esc(why)}</p></div><button class="primary" data-go="${target}">Jetzt bearbeiten</button></section>
-  <div class="grid"><article class="card"><span class="muted">Datenbasis</span><div class="metric">${readiness()}/6</div><p>Bereiche belastbar erfasst</p></article><article class="card"><span class="muted">Eigene Pals</span><div class="metric">${state.pals.length}</div><p>für baubare Vorschläge</p></article></div>
-  <div class="section-title"><h2>Status</h2></div>${statusRows()}`;
-}
-
-function statusRows() {
-  const rows = [
-    ['Ziel',state.profile.goal || 'Noch nicht festgelegt'],
-    ['Ausrüstung',state.equipment.length ? `${state.equipment.length} Einträge` : 'Fehlt'],
-    ['Materialien',state.materials.length ? `${state.materials.length} Einträge` : 'Fehlt'],
-    ['Basen',state.bases.length ? `${state.bases.length} erfasst` : 'Fehlt']
-  ];
-  return `<div class="list">${rows.map(([a,b])=>`<div class="list-item"><strong>${a}</strong><span class="badge">${esc(b)}</span></div>`).join('')}</div>`;
-}
-
-function bestand() {
-  return `<section class="card"><p class="eyebrow">MEIN SPIELSTAND</p><h3>Berechnungsgrundlage</h3><form id="profileForm" class="form">
-  <div class="field"><label>Spielerlevel</label><input name="playerLevel" type="number" min="1" value="${esc(state.profile.playerLevel)}"></div>
-  <div class="field"><label>Welt</label><input name="world" value="${esc(state.profile.world)}"></div>
-  <div class="field"><label>Zieltyp</label><select name="goalType"><option value="boss" ${sel('boss')}>Boss / Raid</option><option value="farm" ${sel('farm')}>Material / Farm</option><option value="build" ${sel('build')}>Team / Build</option></select></div>
-  <div class="field"><label>Aktuelles Ziel</label><input name="goal" value="${esc(state.profile.goal)}" placeholder="z. B. Lily Hard besiegen"></div><button class="primary">Speichern</button></form></section>
-  ${collectionCard('Meine Pals','pal',state.pals,p=>`${p.stars}★ · Level ${p.level||'offen'}`)}
-  ${collectionCard('Ausrüstung','equipment',state.equipment,x=>x.detail||'ohne Detail')}
-  ${collectionCard('Materialien','material',state.materials,x=>`${x.amount||0} vorhanden`)}
-  ${collectionCard('Basen','base',state.bases,x=>x.purpose||'Zweck offen')}`;
-}
-
-function sel(value){ return state.profile.goalType===value?'selected':''; }
-function collectionCard(title,type,items,subtitle) {
-  return `<section class="card"><div class="section-title"><h2>${title}</h2><button data-add="${type}">Hinzufügen</button></div>${items.length?`<div class="list">${items.map((x,i)=>`<div class="list-item"><div><strong>${esc(x.name)}</strong><small>${esc(subtitle(x))}</small></div><button class="secondary compact" data-remove="${type}:${i}">×</button></div>`).join('')}</div>`:`<div class="empty"><strong>Noch nichts erfasst</strong><p class="muted">Nur tatsächliche Spieldaten eintragen.</p></div>`}</section>`;
-}
-
-function optimieren() {
-  const [title,why] = decision();
-  const blockers = [];
-  if (!state.pals.length) blockers.push('Pal-Bestand');
-  if (state.profile.goalType==='boss' && !state.equipment.length) blockers.push('Ausrüstung');
-  if (state.profile.goalType==='farm' && !state.materials.length) blockers.push('Materialbestand');
-  return `<section class="hero"><div><p class="eyebrow">ENTSCHEIDUNGSENGINE</p><h2>${esc(title)}</h2><p>${esc(why)}</p></div>${blockers.length?`<button class="primary" data-go="bestand">${blockers.join(', ')} ergänzen</button>`:'<button class="primary" data-go="bestand">Daten prüfen</button>'}</section>
-  <div class="section-title"><h2>Module</h2></div><div class="module-grid">${modules.map(([id,name,desc])=>`<article class="module-card"><div class="module-icon">${icon(id)}</div><div><h3>${name}</h3><p>${desc}</p></div><span class="badge">Grundlage</span></article>`).join('')}</div>
-  <p class="notice">Es werden erst dann Stärke-, Zeit- oder DPS-Werte angezeigt, wenn dafür bestätigte Spieldaten und reproduzierbare Formeln integriert sind.</p>`;
-}
-
-function mehr() {
-  return `<section class="card"><p class="eyebrow">LOKALE DATEN</p><h3>Backup und Datenschutz</h3><p>Dein Spielstand liegt ausschließlich in der IndexedDB dieses Geräts.</p><div class="button-stack"><button class="secondary" data-export>Backup exportieren</button><label class="secondary file-button">Backup importieren<input type="file" accept="application/json" data-import></label></div></section>
-  <section class="card"><h3>Version</h3><p>PALWERK Foundation v0.2 · Datenschema ${state.schemaVersion}</p></section>`;
-}
-
-function render(){ app.innerHTML=({dashboard,bestand,optimieren,mehr})[route](); document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.route===route)); bind(); }
-function bind(){
-  document.querySelectorAll('[data-go]').forEach(x=>x.onclick=()=>navigate(x.dataset.go));
-  document.querySelector('#profileForm')?.addEventListener('submit',async e=>{e.preventDefault();state.profile=Object.fromEntries(new FormData(e.currentTarget));await save();render();});
-  document.querySelectorAll('[data-add]').forEach(x=>x.onclick=()=>add(x.dataset.add));
-  document.querySelectorAll('[data-remove]').forEach(x=>x.onclick=async()=>{const[t,i]=x.dataset.remove.split(':'); const key={pal:'pals',equipment:'equipment',material:'materials',base:'bases'}[t];state[key].splice(+i,1);await save();render();});
-  document.querySelector('[data-export]')?.addEventListener('click',exportBackup);
-  document.querySelector('[data-import]')?.addEventListener('change',importBackup);
-}
-
-async function add(type){
-  const name=prompt(type==='pal'?'Pal-Name':type==='base'?'Name der Basis':type==='material'?'Material':'Ausrüstung'); if(!name?.trim())return;
-  if(type==='pal'){const level=prompt('Level (optional)')||'';const stars=Math.max(0,Math.min(4,Number(prompt('Sterne 0–4')||0)));state.pals.push({id:crypto.randomUUID(),name:name.trim(),level,stars,passives:[],skills:[],implants:[]});}
-  if(type==='equipment')state.equipment.push({id:crypto.randomUUID(),name:name.trim(),detail:prompt('Qualität / Stufe')||''});
-  if(type==='material')state.materials.push({id:crypto.randomUUID(),name:name.trim(),amount:Math.max(0,Number(prompt('Menge')||0))});
-  if(type==='base')state.bases.push({id:crypto.randomUUID(),name:name.trim(),purpose:prompt('Zweck der Basis')||''});
-  await save();render();
-}
-
-function exportBackup(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`palwerk-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}
-async function importBackup(e){try{const parsed=JSON.parse(await e.target.files[0].text());if(!parsed.profile||!Array.isArray(parsed.pals))throw new Error();state={...defaultState,...parsed,schemaVersion:1};await save();render();}catch{alert('Das Backup ist ungültig.');}}
-function icon(id){return({team:'◇',boss:'⚔',material:'▦',breed:'∞',farm:'⌂',disassembly:'⌁'})[id];}
-function navigate(next){route=next;render();scrollTo({top:0,behavior:'smooth'});}
-function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-
-document.querySelectorAll('.tab').forEach(x=>x.onclick=()=>navigate(x.dataset.route));
-function connection(){document.querySelector('#offlineStatus').textContent=navigator.onLine?'Lokal bereit':'Offline aktiv';}
-addEventListener('online',connection);addEventListener('offline',connection);
-if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js');
-connection();render();
+const ELEMENTS=['Neutral','Feuer','Wasser','Gras','Elektro','Eis','Erde','Dunkel','Drache'];
+const ROLES=[['carry','Hauptangreifer'],['support','Support'],['tank','Tank'],['healer','Heilung'],['flex','Flex']];
+const defaultState={schemaVersion:2,profile:{playerLevel:'',world:'',goal:'',goalType:'boss'},pals:[],equipment:[],materials:[],bases:[],teamPlans:[],updatedAt:null};
+const modules=[['team','Team Builder','Baubare Teams aus deinem Bestand'],['boss','Boss Planner','Lücken vor dem nächsten Kampf'],['material','Material Optimizer','Engpässe und nächste Farmaktion'],['breed','Zucht','Kürzester bestätigter Zuchtpfad'],['farm','Farm','Basen und Arbeitsrollen strukturieren'],['disassembly','Disassembly','Zerlegen nur bei belegbarem Vorteil']];
+let state=await loadState(defaultState);state={...defaultState,...state,profile:{...defaultState.profile,...state.profile},teamPlans:state.teamPlans||[]};
+let route='dashboard';let subroute='';const app=document.querySelector('#app');
+async function save(){state.schemaVersion=2;state.updatedAt=new Date().toISOString();await persistState(state)}
+const esc=(v='')=>String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const roleLabel=r=>ROLES.find(x=>x[0]===r)?.[1]||'Flex';
+function readiness(){return[state.profile.playerLevel,state.profile.goal,state.pals.length,state.equipment.length,state.materials.length,state.bases.length].filter(Boolean).length}
+function decision(){if(!state.profile.playerLevel)return['Spielerlevel ergänzen','Nur erreichbare Inhalte dürfen berücksichtigt werden.','bestand'];if(!state.profile.goal)return['Ziel festlegen','Ohne konkretes Ziel gibt es keine sinnvolle Optimierung.','bestand'];if(!state.pals.length)return['Pal-Bestand erfassen','PALWERK schlägt keine Pals vor, die du nicht besitzt.','bestand'];if(!state.pals.some(p=>p.role))return['Pal-Rollen ergänzen','Der Team Builder braucht mindestens einen eingeordneten Pal.','bestand'];return[`${state.profile.goal} vorbereiten`,'Dein Bestand kann jetzt regelbasiert auf Rollen und Synergien geprüft werden.','optimieren']}
+function dashboard(){const[t,w,target]=decision();return`<section class="hero"><div><p class="eyebrow">NÄCHSTER BESTER SCHRITT</p><h2>${esc(t)}</h2><p>${esc(w)}</p></div><button class="primary" data-go="${target}">Jetzt bearbeiten</button></section><div class="grid"><article class="card"><span class="muted">Datenbasis</span><div class="metric">${readiness()}/6</div><p>Bereiche belastbar erfasst</p></article><article class="card"><span class="muted">Teamfähige Pals</span><div class="metric">${state.pals.filter(p=>p.role).length}</div><p>mit definierter Rolle</p></article></div><div class="section-title"><h2>Status</h2></div><div class="list"><div class="list-item"><strong>Ziel</strong><span class="badge">${esc(state.profile.goal||'Fehlt')}</span></div><div class="list-item"><strong>Gespeicherte Teams</strong><span class="badge">${state.teamPlans.length}</span></div><div class="list-item"><strong>Offline-Daten</strong><span class="badge">Lokal</span></div></div>`}
+function sel(v){return state.profile.goalType===v?'selected':''}
+function bestand(){return`<section class="card"><p class="eyebrow">MEIN SPIELSTAND</p><h3>Berechnungsgrundlage</h3><form id="profileForm" class="form"><div class="field"><label>Spielerlevel</label><input name="playerLevel" type="number" min="1" value="${esc(state.profile.playerLevel)}"></div><div class="field"><label>Welt</label><input name="world" value="${esc(state.profile.world)}"></div><div class="field"><label>Zieltyp</label><select name="goalType"><option value="boss" ${sel('boss')}>Boss / Raid</option><option value="farm" ${sel('farm')}>Material / Farm</option><option value="build" ${sel('build')}>Team / Build</option></select></div><div class="field"><label>Aktuelles Ziel</label><input name="goal" value="${esc(state.profile.goal)}" placeholder="z. B. Lily Hard besiegen"></div><button class="primary">Speichern</button></form></section>${palCard()}${collectionCard('Ausrüstung','equipment',state.equipment,x=>x.detail||'ohne Detail')}${collectionCard('Materialien','material',state.materials,x=>`${x.amount||0} vorhanden`)}${collectionCard('Basen','base',state.bases,x=>x.purpose||'Zweck offen')}`}
+function palCard(){return`<section class="card"><div class="section-title"><h2>Meine Pals</h2><button data-edit-pal="new">Hinzufügen</button></div>${state.pals.length?`<div class="list">${state.pals.map((p,i)=>`<button class="pal-row" data-edit-pal="${i}"><div><strong>${esc(p.name)}</strong><small>${esc(p.element||'Element offen')} · ${esc(roleLabel(p.role))} · ${p.stars||0}★</small></div><span>›</span></button>`).join('')}</div>`:`<div class="empty"><strong>Noch keine Pals</strong><p class="muted">Erfasse nur Pals, die du wirklich besitzt.</p></div>`}</section>`}
+function collectionCard(title,type,items,subtitle){return`<section class="card"><div class="section-title"><h2>${title}</h2><button data-add="${type}">Hinzufügen</button></div>${items.length?`<div class="list">${items.map((x,i)=>`<div class="list-item"><div><strong>${esc(x.name)}</strong><small>${esc(subtitle(x))}</small></div><button class="secondary compact" data-remove="${type}:${i}">×</button></div>`).join('')}</div>`:`<div class="empty"><strong>Noch nichts erfasst</strong><p class="muted">Nur tatsächliche Spieldaten eintragen.</p></div>`}</section>`}
+function optimieren(){if(subroute==='team')return teamBuilder();return`<section class="hero"><div><p class="eyebrow">ENTSCHEIDUNGSENGINE</p><h2>Womit willst du optimieren?</h2><p>Jedes Modul arbeitet nur mit deinem lokalen Spielstand.</p></div></section><div class="module-grid">${modules.map(([id,n,d])=>`<button class="module-card" data-module="${id}"><div class="module-icon">${icon(id)}</div><div><h3>${n}</h3><p>${d}</p></div><span class="badge">${id==='team'?'Aktiv':'Grundlage'}</span></button>`).join('')}</div><p class="notice">Stärke-, Zeit- und DPS-Werte erscheinen erst mit bestätigten Spieldaten und reproduzierbaren Formeln.</p>`}
+function teamBuilder(){const usable=state.pals.filter(p=>p.role);const missing=!usable.length;return`<button class="back-link" data-back>‹ Module</button><section class="hero compact-hero"><div><p class="eyebrow">TEAM BUILDER</p><h2>Baubares Team planen</h2><p>PALWERK priorisiert Rollenabdeckung und explizit erfasste Support-Effekte.</p></div></section>${missing?`<section class="card"><h3>Rollen fehlen</h3><p>Ordne deinen Pals zuerst Rollen zu.</p><button class="primary top-gap" data-go="bestand">Pals bearbeiten</button></section>`:`<section class="card"><form id="teamForm" class="form"><div class="field"><label>Gewünschtes Hauptelement</label><select name="element"><option value="">Beliebig</option>${ELEMENTS.map(e=>`<option>${e}</option>`).join('')}</select></div><div class="field"><label>Teamziel</label><select name="mode"><option value="balanced">Ausgewogen</option><option value="damage">Maximaler Druck</option><option value="safe">Sicher / stabil</option></select></div><button class="primary">Bestes baubares Team ermitteln</button></form></section><div id="teamResult"></div>`}${state.teamPlans.length?`<div class="section-title"><h2>Gespeicherte Teams</h2></div><div class="list">${state.teamPlans.slice().reverse().map((t,i)=>`<div class="list-item"><div><strong>${esc(t.name)}</strong><small>${t.members.map(x=>esc(x.name)).join(' · ')}</small></div><span class="badge">${esc(t.modeLabel)}</span></div>`).join('')}</div>`:''}`}
+function buildTeam(element,mode){const pool=state.pals.filter(p=>p.role);const byRole=r=>pool.filter(p=>p.role===r);const picked=[];const add=p=>{if(p&&!picked.some(x=>x.id===p.id))picked.push(p)};const carryCandidates=byRole('carry').concat(byRole('flex')).filter(p=>!element||p.element===element);add(sortPals(carryCandidates)[0]||sortPals(byRole('carry').concat(byRole('flex')))[0]);if(mode==='damage'){add(bestSupport(pool,picked,element));add(bestSupport(pool,picked,element));add(sortPals(byRole('carry').filter(p=>!picked.includes(p)))[0])}else if(mode==='safe'){add(sortPals(byRole('tank'))[0]);add(sortPals(byRole('healer'))[0]);add(bestSupport(pool,picked,element))}else{add(bestSupport(pool,picked,element));add(sortPals(byRole('tank'))[0]);add(sortPals(byRole('healer'))[0])}for(const p of sortPals(pool))if(picked.length<5)add(p);return picked.slice(0,5)}
+function sortPals(list){return[...list].sort((a,b)=>(Number(b.stars||0)-Number(a.stars||0))||(Number(b.level||0)-Number(a.level||0)))}
+function bestSupport(pool,picked,element){const supports=pool.filter(p=>p.role==='support'&&!picked.some(x=>x.id===p.id));return sortPals(supports).sort((a,b)=>supportFit(b,element)-supportFit(a,element))[0]}
+function supportFit(p,element){let n=0;const text=`${p.supportEffect||''} ${(p.passives||[]).join(' ')}`.toLowerCase();if(element&&text.includes(element.toLowerCase()))n+=3;if(text.includes('angriff')||text.includes('schaden'))n+=2;if(text.includes('verteid')||text.includes('heil'))n+=1;return n}
+function explainTeam(team,element,mode){const reasons=[];const roles=team.map(p=>p.role);if(roles.includes('carry'))reasons.push('Mindestens ein Hauptangreifer ist vorhanden.');if(roles.includes('support'))reasons.push('Support wird aus deinen erfassten Effekten priorisiert.');if(roles.includes('tank'))reasons.push('Ein Tank erhöht die Stabilität.');if(roles.includes('healer'))reasons.push('Heilung deckt längere Kämpfe ab.');if(element&&team.some(p=>p.element===element))reasons.push(`${element} ist im Team vertreten.`);if(mode==='damage'&&!roles.includes('tank'))reasons.push('Dieses Team verzichtet zugunsten von Druck auf zusätzliche Absicherung.');return reasons}
+function teamResult(team,element,mode){const labels={balanced:'Ausgewogen',damage:'Druck',safe:'Sicher'};return`<section class="card result-card"><p class="eyebrow">EMPFEHLUNG</p><h3>${team.length} von 5 Plätzen belegt</h3><div class="team-slots">${team.map((p,i)=>`<div class="team-slot"><span>${i+1}</span><div><strong>${esc(p.name)}</strong><small>${esc(roleLabel(p.role))} · ${esc(p.element||'Element offen')} · ${p.stars||0}★</small></div></div>`).join('')}</div><div class="reason-box"><strong>Warum dieses Team?</strong>${explainTeam(team,element,mode).map(x=>`<p>• ${esc(x)}</p>`).join('')}</div><button class="secondary" data-save-team>Team speichern</button><input type="hidden" id="teamPayload" value="${encodeURIComponent(JSON.stringify({members:team,element,mode,modeLabel:labels[mode]}))}"></section>`}
+function mehr(){return`<section class="card"><p class="eyebrow">LOKALE DATEN</p><h3>Backup und Datenschutz</h3><p>Dein Spielstand liegt ausschließlich in der IndexedDB dieses Geräts.</p><div class="button-stack"><button class="secondary" data-export>Backup exportieren</button><label class="secondary file-button">Backup importieren<input type="file" accept="application/json" data-import></label></div></section><section class="card"><h3>Version</h3><p>PALWERK v0.3 · Datenschema ${state.schemaVersion}</p></section>`}
+function render(){app.innerHTML=({dashboard,bestand,optimieren,mehr})[route]();document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.route===route));bind()}
+function bind(){document.querySelectorAll('[data-go]').forEach(x=>x.onclick=()=>navigate(x.dataset.go));document.querySelector('#profileForm')?.addEventListener('submit',async e=>{e.preventDefault();state.profile=Object.fromEntries(new FormData(e.currentTarget));await save();render()});document.querySelectorAll('[data-edit-pal]').forEach(x=>x.onclick=()=>editPal(x.dataset.editPal));document.querySelectorAll('[data-add]').forEach(x=>x.onclick=()=>addSimple(x.dataset.add));document.querySelectorAll('[data-remove]').forEach(x=>x.onclick=async()=>{const[t,i]=x.dataset.remove.split(':');const key={equipment:'equipment',material:'materials',base:'bases'}[t];state[key].splice(+i,1);await save();render()});document.querySelectorAll('[data-module]').forEach(x=>x.onclick=()=>{if(x.dataset.module==='team'){subroute='team';render()}else alert('Dieses Modul erhält als Nächstes seine bestätigte Berechnungslogik.')});document.querySelector('[data-back]')?.addEventListener('click',()=>{subroute='';render()});document.querySelector('#teamForm')?.addEventListener('submit',e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const team=buildTeam(d.element,d.mode);document.querySelector('#teamResult').innerHTML=teamResult(team,d.element,d.mode);bindSaveTeam()});document.querySelector('[data-export]')?.addEventListener('click',exportBackup);document.querySelector('[data-import]')?.addEventListener('change',importBackup)}
+function bindSaveTeam(){document.querySelector('[data-save-team]')?.addEventListener('click',async()=>{const payload=JSON.parse(decodeURIComponent(document.querySelector('#teamPayload').value));const name=prompt('Name für dieses Team',state.profile.goal||'Mein Team');if(!name)return;state.teamPlans.push({...payload,id:crypto.randomUUID(),name,createdAt:new Date().toISOString()});await save();render()})}
+async function editPal(index){const existing=index==='new'?{id:crypto.randomUUID(),name:'',level:'',stars:0,element:'',role:'flex',supportEffect:'',passives:[]}:state.pals[+index];const name=prompt('Pal-Name',existing.name);if(!name?.trim())return;const level=prompt('Level',existing.level||'')||'';const stars=Math.max(0,Math.min(4,Number(prompt('Sterne 0–4',existing.stars||0)||0)));const element=prompt(`Element: ${ELEMENTS.join(', ')}`,existing.element||'')||'';const role=prompt('Rolle: carry, support, tank, healer oder flex',existing.role||'flex')||'flex';const supportEffect=prompt('Support-Effekt in eigenen Worten (optional)',existing.supportEffect||'')||'';const passives=(prompt('Passivfähigkeiten, mit Komma trennen',(existing.passives||[]).join(', '))||'').split(',').map(x=>x.trim()).filter(Boolean);const pal={...existing,name:name.trim(),level,stars,element:ELEMENTS.includes(element)?element:element.trim(),role:ROLES.some(x=>x[0]===role)?role:'flex',supportEffect,passives};if(index==='new')state.pals.push(pal);else state.pals[+index]=pal;await save();render()}
+async function addSimple(type){const name=prompt(type==='base'?'Name der Basis':type==='material'?'Material':'Ausrüstung');if(!name?.trim())return;if(type==='equipment')state.equipment.push({id:crypto.randomUUID(),name:name.trim(),detail:prompt('Qualität / Stufe')||''});if(type==='material')state.materials.push({id:crypto.randomUUID(),name:name.trim(),amount:Math.max(0,Number(prompt('Menge')||0))});if(type==='base')state.bases.push({id:crypto.randomUUID(),name:name.trim(),purpose:prompt('Zweck der Basis')||''});await save();render()}
+function exportBackup(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`palwerk-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href)}
+async function importBackup(e){try{const parsed=JSON.parse(await e.target.files[0].text());if(!parsed.profile||!Array.isArray(parsed.pals))throw new Error();state={...defaultState,...parsed,schemaVersion:2,teamPlans:parsed.teamPlans||[]};await save();render()}catch{alert('Das Backup ist ungültig.')}}
+function icon(id){return({team:'◇',boss:'⚔',material:'▦',breed:'∞',farm:'⌂',disassembly:'⌁'})[id]}
+function navigate(next){route=next;subroute='';render();scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('.tab').forEach(x=>x.onclick=()=>navigate(x.dataset.route));function connection(){document.querySelector('#offlineStatus').textContent=navigator.onLine?'Lokal bereit':'Offline aktiv'}addEventListener('online',connection);addEventListener('offline',connection);if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js');connection();render();
