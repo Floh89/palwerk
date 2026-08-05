@@ -39,8 +39,13 @@ jobs:
           curl -fL --retry 3 "$savepal/l10n/de/pals.json" -o data/upstream/pals-de.json
           curl -fL --retry 3 "$savepal/l10n/de/active_skills.json" -o data/upstream/active-skills-de.json
           curl -fL --retry 3 "$savepal/l10n/de/passive_skills.json" -o data/upstream/passive-skills-de.json
+          curl -fL --retry 3 "https://palworld.wiki.gg/wiki/Module:PartnerSkills/data.json?action=raw" -o data/upstream/partner-skills.json || echo '{}' > data/upstream/partner-skills.json
+          curl -fL --retry 3 "https://palworld.wiki.gg/api.php?action=cargoquery&format=json&limit=5000&tables=PalPartnerSkillScale&fields=_pageName,Skill,Effect_Type,Target,Level,Value" -o data/upstream/partner-scales.json || echo '{}' > data/upstream/partner-scales.json
+          node -e "for(const f of ['partner-skills.json','partner-scales.json']){try{JSON.parse(require('fs').readFileSync('data/upstream/'+f,'utf8'))}catch{require('fs').writeFileSync('data/upstream/'+f,'{}')}}"
       - name: Generate offline catalog
-        run: node scripts/build-core-data.mjs
+        run: |
+          node scripts/build-core-data.mjs
+          node scripts/build-partner-data.mjs
       - name: Bundle Pal images
         run: |
           rm -rf /tmp/palworld-api
