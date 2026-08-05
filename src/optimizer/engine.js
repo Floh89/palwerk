@@ -1,288 +1,39 @@
 import { PAL_CATALOG } from '../catalog.js';
 import { ACTIVE_SKILL_RECORDS } from '../generated-core.js';
 
-const NUMBER = value => Number(value) || 0;
-const normalize = value => String(value ?? '').trim().toLowerCase();
-const ELEMENT_MAP = {
-  Normal: 'Neutral', Neutral: 'Neutral', Fire: 'Feuer', Water: 'Wasser',
-  Leaf: 'Gras', Grass: 'Gras', Electricity: 'Elektro', Electric: 'Elektro',
-  Ice: 'Eis', Ground: 'Erde', Earth: 'Erde', Dark: 'Schatten', Dragon: 'Drache'
-};
-const COUNTER = {
-  Feuer: 'Wasser', Wasser: 'Elektro', Gras: 'Feuer', Elektro: 'Erde',
-  Eis: 'Feuer', Erde: 'Gras', Schatten: 'Drache', Drache: 'Eis', Neutral: 'Schatten'
-};
-const BLOCKED_ID = /astralym|amaterasuwolf|quest|avatar|enemy|friend|summon|tower|raid_|npc|human/i;
-const DEFAULT_PROFILE = Object.freeze({
-  level: 75,
-  stars: 0,
-  passives: [],
-  activeSkills: [],
-  activeSkillIds: [],
-  ivs: { hp: 0, attack: 0, defense: 0 },
-  souls: { hp: 0, attack: 0, defense: 0, work: 0 }
-});
+const N=value=>Number(value)||0;
+const ELEMENT_MAP={Normal:'Neutral',Neutral:'Neutral',Fire:'Feuer',Water:'Wasser',Leaf:'Gras',Grass:'Gras',Electricity:'Elektro',Electric:'Elektro',Ice:'Eis',Ground:'Erde',Earth:'Erde',Dark:'Schatten',Dragon:'Drache'};
+const COUNTER={Feuer:'Wasser',Wasser:'Elektro',Gras:'Feuer',Elektro:'Erde',Eis:'Feuer',Erde:'Gras',Schatten:'Drache',Drache:'Eis',Neutral:'Schatten'};
+const BLOCKED=/astralym|amaterasuwolf|quest|avatar|enemy|friend|summon|tower|raid_|npc|human/i;
+const DEFAULT_PROFILE=Object.freeze({level:75,stars:0,passives:[],activeSkills:[],activeSkillIds:[],ivs:{hp:0,attack:0,defense:0},souls:{hp:0,attack:0,defense:0,work:0}});
+export const ACTIVITY_MODELS=Object.freeze({normal_team:'single-active-pal',tower:'single-active-pal',alpha_boss:'single-active-pal',raid:'multi-active-army',base:'base-assignment',farm_loot:'conditional-farm-team',manual:'manual-interaction'});
 
-function elementsOf(pal) {
-  return String(pal?.element || '').split('/').map(value => value.trim()).filter(Boolean);
-}
+const elementsOf=pal=>String(pal?.element||'').split('/').map(x=>x.trim()).filter(Boolean);
+const effectsOf=pal=>Array.isArray(pal?.partner?.effects)?pal.partner.effects:[];
+const catalogById=id=>PAL_CATALOG.find(p=>p.key===id||p.internalId===id);
+function skillRecord(skill){return skill?.data||ACTIVE_SKILL_RECORDS?.[skill?.id]||ACTIVE_SKILL_RECORDS?.[`EPalWazaID::${skill?.id}`]||null;}
+function profileFor(state,pal,instance){const source=instance||state?.palProfiles?.[pal.key]||state?.palProfiles?.[pal.internalId]||{};return{...DEFAULT_PROFILE,...source,ivs:{...DEFAULT_PROFILE.ivs,...(source.ivs||{})},souls:{...DEFAULT_PROFILE.souls,...(source.souls||{})}};}
+function usable(pal){return Boolean(pal?.key&&pal?.name&&!BLOCKED.test(`${pal.internalId||''} ${pal.name}`)&&!pal.flags?.towerBoss&&!pal.flags?.raidBoss&&pal.rawRecord?.capture_rate_correct!==0);}
+function quality(effect){if(effect?.status==='verified'||effect?.confidence==='high')return 1;if(effect?.status==='community-tested'||effect?.confidence==='medium')return .7;if(effect?.status==='modelled')return .45;return .2;}
+function activationAllowed(effect,allowed){return allowed.includes(effect?.activation||'unknown');}
+function valueAtRank(effect,rank=0){if(Array.isArray(effect?.valuesByRank)&&effect.valuesByRank[rank]!=null)return N(effect.valuesByRank[rank]);return N(effect?.value??effect?.percent??effect?.amount);}
+function phaseTargets(encounter){return encounter?.phases?.length?encounter.phases.map(p=>({weight:N(p.hpShare)||1/encounter.phases.length,elements:p.elements||encounter.elements||[]})):[{weight:1,elements:encounter?.elements||[]}];}
+function skillMetrics(skill,pal,encounter){const record=skillRecord(skill),rawPower=N(record?.power??skill?.power),cooldown=Math.max(.5,N(record?.cool_time??record?.cooldown??skill?.cooldown)||10),rawElement=record?.element??skill?.element??'Neutral',element=ELEMENT_MAP[rawElement]||rawElement,animation=N(record?.animation)||1.25,hitRate=N(record?.hit_rate)||.72;let fit=0;for(const phase of phaseTargets(encounter)){const counters=new Set(phase.elements.map(e=>COUNTER[e]).filter(Boolean));fit+=phase.weight*(counters.has(element)?1.5:1);}const stab=elementsOf(pal).includes(element)?1.2:1;return{id:skill?.id,name:skill?.name||skill?.id||'Unbekannter Skill',element,rawPower,cooldown,animation,hitRate,practicalScore:rawPower?(rawPower*fit*stab*hitRate)/(cooldown+animation):0,assumptions:[record?.animation?null:'Animationsdauer mit 1,25 s modelliert',record?.hit_rate?null:'Trefferquote mit 72 % modelliert'].filter(Boolean)};}
+function rotation(pal,profile,encounter){const selected=new Set(profile.activeSkills?.length?profile.activeSkills:profile.activeSkillIds||[]);return(pal.skills||[]).filter(s=>N(s.level)<=N(profile.level||75)).filter(s=>!selected.size||selected.has(s.id)).map(s=>skillMetrics(s,pal,encounter)).filter(s=>s.rawPower>0).sort((a,b)=>b.practicalScore-a.practicalScore).slice(0,3);}
+function activeModel(pal,profile,encounter){const skills=rotation(pal,profile,encounter);if(!skills.length)return null;const level=.55+Math.min(75,Math.max(1,N(profile.level||75)))/75*.45,iv=1+Math.min(100,Math.max(0,N(profile.ivs?.attack)))*.003,soul=1+Math.min(10,Math.max(0,N(profile.souls?.attack)))*.03,relative=skills.reduce((s,x)=>s+x.practicalScore,0)*N(pal.stats?.attack)*level*iv*soul/100;return{pal,profile,rotation:skills,relativeCombatValue:relative,estimatedDpsRange:{low:relative*.55,high:relative*.95},assumptions:[...new Set(skills.flatMap(s=>s.assumptions))]};}
+function ownedIds(owned=[]){return new Set(owned.map(x=>x.catalogId||x.key||x.internalId));}
+function sourcePals(owned,constraints){const ids=ownedIds(owned);return PAL_CATALOG.filter(p=>usable(p)&&(!constraints?.ownedOnly||ids.has(p.key)||ids.has(p.internalId)));}
+function supportUtility(pal,carry,allowedActivations=['in_party']){let utility=0;const reasons=[];for(const e of effectsOf(pal)){if(!activationAllowed(e,allowedActivations))continue;const target=e.element||e.targetElement,matching=!target||elementsOf(carry.pal).includes(target);let weight=0;if(['pal_element_attack','weakpoint_damage','pal_attack','party_pal_attack'].includes(e.type)&&matching)weight=8;if(['cooldown_reduction','party_follow_attack'].includes(e.type))weight=6;if(['player_attack','player_weapon_damage'].includes(e.type))weight=5;if(['heal_player','revive_player','life_steal','damage_reduction'].includes(e.type))weight=4;if(!weight)continue;const numeric=valueAtRank(e,0),contribution=weight*quality(e)*(numeric?Math.min(3,numeric/10):.4);utility+=contribution;reasons.push(`${pal.partner?.name||'Partnerfähigkeit'} · ${e.type}${numeric?` ${numeric}`:' · Wert offen'}`);}return{utility,reasons};}
+function combos(items,choose,start=0,prefix=[],out=[]){if(prefix.length===choose){out.push(prefix);return out;}for(let i=start;i<=items.length-(choose-prefix.length);i++)combos(items,choose,i+1,[...prefix,items[i]],out);return out;}
+function role(member,carry){if(member.pal.key===carry.pal.key)return'Aktiver Haupt-Pal';const types=effectsOf(member.pal).map(e=>e.type);if(types.some(t=>['pal_element_attack','weakpoint_damage','pal_attack','party_pal_attack'].includes(t)))return'Schadensverstärker';if(types.some(t=>['cooldown_reduction','party_follow_attack'].includes(t)))return'Tempo-/Begleitsupport';if(types.some(t=>['player_attack','player_weapon_damage'].includes(t)))return'Spieler-Support';if(types.some(t=>['heal_player','revive_player','life_steal','damage_reduction'].includes(t)))return'Sustain-Support';return'Wechsel-Pal';}
+function optimizeSingleActive({encounter,playerState,ownedPals,constraints,optimizationGoal,activity}){const source=sourcePals(ownedPals,constraints),carries=source.map(p=>activeModel(p,profileFor(playerState,p),encounter)).filter(Boolean).sort((a,b)=>b.relativeCombatValue-a.relativeCombatValue).slice(0,8);if(!carries.length)return{status:'insufficient-data',model:ACTIVITY_MODELS[activity],reason:'Kein Pal mit auswertbarer Skillrotation verfügbar.',teams:[],dataQuality:'missing'};let best=null;for(const carry of carries){const pool=source.filter(p=>p.key!==carry.pal.key).map(p=>({pal:p,...supportUtility(p,carry,['in_party'])})).sort((a,b)=>b.utility-a.utility).slice(0,14);for(const group of combos(pool,Math.min(4,pool.length))){const score=carry.relativeCombatValue+group.reduce((s,m)=>s+m.utility,0);if(!best||score>best.score)best={carry,group,score};}}if(!best||best.group.length<4)return{status:'insufficient-data',model:ACTIVITY_MODELS[activity],reason:'Keine vollständige Fünferkombination mit nachvollziehbaren Daten verfügbar.',teams:[],dataQuality:'missing'};const supports=best.group.map(m=>({pal:m.pal,profile:profileFor(playerState,m.pal),rotation:[],relativeCombatValue:0,estimatedDpsRange:null,supportUtility:m.utility,supportReasons:m.reasons}));const members=[best.carry,...supports].map(m=>({...m,role:role(m,best.carry)}));return{status:'ok',model:ACTIVITY_MODELS[activity],optimizationGoal,teams:[{id:'best-practical',label:activity==='normal_team'?'Bestes normales Fünferteam':'Bestes nachvollziehbares Boss-Team',members,relativeTeamValue:best.score,estimatedActivePalDpsRange:best.carry.estimatedDpsRange,dataQuality:'modelled',assumptions:[...best.carry.assumptions,'Genau ein aktiver Pal verursacht eigenen Pal-Schaden.','Vier Party-Pals werden nur über anwendbare In-Party-Effekte bewertet.','Pal-Wechsel und Mountphasen sind noch nicht zeitlich simuliert.','Keine sekundengenaue Schadensgarantie.']}],dataQuality:'modelled'};}
+function raidInstances(owned=[]){return owned.map((instance,index)=>{const pal=catalogById(instance.catalogId||instance.key||instance.internalId);return pal&&usable(pal)?{instance:{...instance,uniqueId:instance.uniqueId||`legacy-${index}`},pal}:null;}).filter(Boolean);}
+function optimizeRaid({encounter,playerState,ownedPals,constraints,optimizationGoal}){const limit=N(constraints?.baseLimit||playerState?.raidBaseLimit);if(!limit)return{status:'insufficient-data',model:'multi-active-army',reason:'Für das Raid-Modell muss das tatsächliche Basislimit erfasst sein.',armies:[],dataQuality:'missing'};const rows=raidInstances(ownedPals).map(({instance,pal})=>{const model=activeModel(pal,profileFor(playerState,pal,instance),encounter);return model?{...model,instance}:null;}).filter(Boolean).sort((a,b)=>b.relativeCombatValue-a.relativeCombatValue);if(!rows.length)return{status:'insufficient-data',model:'multi-active-army',reason:'Keine konkreten eigenen Raid-Pals mit berechenbarer Rotation vorhanden.',armies:[],dataQuality:'missing'};const deployed=rows.slice(0,limit),reserve=rows.slice(limit),waveSize=Math.max(1,limit),waves=[];for(let i=0;i<rows.length;i+=waveSize)waves.push(rows.slice(i,i+waveSize));const low=deployed.reduce((s,x)=>s+x.estimatedDpsRange.low,0),high=deployed.reduce((s,x)=>s+x.estimatedDpsRange.high,0);return{status:'ok',model:'multi-active-army',optimizationGoal,armies:[{id:'owned-raid-army',label:'Beste Armee aus konkreten eigenen Exemplaren',deployed,reserve,waves,baseLimit:limit,estimatedArmyDpsRange:{low,high},dataQuality:'modelled',assumptions:['Mehrere eingesetzte Exemplare tragen eigenen Pal-Schaden bei.','Jedes Exemplar wird nur einmal verwendet.','Ausfälle, Wechselzeiten und Bossphasen sind als Struktur vorhanden, aber noch nicht ereignisbasiert simuliert.','Keine Sieg- oder Zeitgarantie.']}],dataQuality:'modelled'};}
+function optimizeBase({encounter,ownedPals,constraints}){const workType=encounter?.workType;if(!workType)return{status:'insufficient-data',model:'base-assignment',reason:'Eine konkrete Arbeitsart ist erforderlich.',assignments:[],dataQuality:'missing'};const rows=raidInstances(ownedPals).map(({instance,pal})=>({instance,pal,workLevel:N(pal.work?.[workType]),stars:N(instance.stars),role:instance.role||null})).filter(x=>x.workLevel>0).sort((a,b)=>b.workLevel-a.workLevel||b.stars-a.stars);const slots=N(constraints?.slots)||rows.length;if(!rows.length)return{status:'insufficient-data',model:'base-assignment',reason:'Kein eigenes Exemplar besitzt die ausgewählte Arbeitseignung.',assignments:[],dataQuality:'missing'};return{status:'ok',model:'base-assignment',assignments:rows.slice(0,slots),alternatives:rows.slice(slots),metric:'Arbeitseignungslevel; keine Produktionsrate',dataQuality:'verified',assumptions:['Keine Material-pro-Stunde-Angabe ohne verifizierte Stations-, Laufweg- und Produktionsdaten.']};}
+function farmMatch(effect,encounter){const target=encounter?.targetElement||encounter?.target||encounter?.materialId;return !target||effect.targetElement===target||effect.element===target||effect.target===target||effect.materialId===target;}
+function optimizeFarm({encounter,ownedPals,constraints}){const allowed=['in_party','summoned','pal_defeats_target','manual_pickup'];const rows=raidInstances(ownedPals).flatMap(({instance,pal})=>effectsOf(pal).filter(e=>activationAllowed(e,allowed)&&farmMatch(e,encounter)&&['pal_drop_bonus','item_weight_reduction','capture_bonus','manual_duplicate','loot_bonus'].includes(e.type)).map(effect=>({instance,pal,effect,activation:effect.activation||'unknown',requiresEquipment:Boolean(effect.requiresEquipment),equipmentId:effect.equipmentId||null,quality:quality(effect),value:valueAtRank(effect,N(instance.stars))}))).sort((a,b)=>b.quality-a.quality||b.value-a.value);if(!rows.length)return{status:'insufficient-data',model:'conditional-farm-team',reason:'Kein passender bestätigter Farm- oder Loot-Effekt im eigenen Bestand.',teams:[],dataQuality:'missing'};const max=N(constraints?.teamSize)||5;return{status:'ok',model:'conditional-farm-team',teams:[{members:rows.slice(0,max),alternatives:rows.slice(max),label:'Bestes verfügbares Farm-/Loot-Team'}],dataQuality:rows.every(x=>x.quality===1)?'verified':'provisional',assumptions:['Keine Ertrag-pro-Stunde-Angabe ohne verifizierte Drop- und Produktionswerte.','Aktivierungsbedingungen werden je Effekt angezeigt und nicht pauschal als Partybonus behandelt.']};}
+function optimizeManual({encounter,ownedPals}){const activation=encounter?.activation;if(!activation)return{status:'insufficient-data',model:'manual-interaction',reason:'Die benötigte manuelle Aktivierungsart fehlt.',options:[],dataQuality:'missing'};const options=raidInstances(ownedPals).flatMap(({instance,pal})=>effectsOf(pal).filter(e=>e.activation===activation&&farmMatch(e,encounter)).map(effect=>({instance,pal,effect,activation,ready:!effect.requiresEquipment||Boolean(instance.saddleOwned)||Boolean(encounter?.ownedEquipmentIds?.includes(effect.equipmentId)),missingRequirement:effect.requiresEquipment&&!instance.saddleOwned&&!encounter?.ownedEquipmentIds?.includes(effect.equipmentId)?effect.equipmentId||'Spezialausrüstung':null,quality:quality(effect)}))).sort((a,b)=>Number(b.ready)-Number(a.ready)||b.quality-a.quality);if(!options.length)return{status:'insufficient-data',model:'manual-interaction',reason:'Keine passende manuelle Fähigkeit im eigenen Bestand.',options:[],dataQuality:'missing'};return{status:'ok',model:'manual-interaction',options,dataQuality:options.every(x=>x.quality===1)?'verified':'provisional',assumptions:['Manuelle Fähigkeiten werden nur bei passender Aktivierungsart berücksichtigt.','Ausrüstungs- und Sattelvoraussetzungen werden je Exemplar geprüft.']};}
 
-function skillRecord(skill) {
-  return skill?.data
-    || ACTIVE_SKILL_RECORDS?.[skill?.id]
-    || ACTIVE_SKILL_RECORDS?.[`EPalWazaID::${skill?.id}`]
-    || null;
-}
+export function optimizeTeam({activity,encounter,playerState={},ownedPals=[],constraints={},optimizationGoal='practical'}={}){if(!activity)throw new TypeError('activity is required');if(!encounter)throw new TypeError('encounter is required');if(!ACTIVITY_MODELS[activity])return{status:'unsupported',reason:`Für ${activity} existiert kein freigegebenes Modell.`,dataQuality:'missing'};if(['normal_team','tower','alpha_boss'].includes(activity))return optimizeSingleActive({activity,encounter,playerState,ownedPals,constraints,optimizationGoal});if(activity==='raid')return optimizeRaid({encounter,playerState,ownedPals,constraints,optimizationGoal});if(activity==='base')return optimizeBase({encounter,ownedPals,constraints});if(activity==='farm_loot')return optimizeFarm({encounter,ownedPals,constraints});if(activity==='manual')return optimizeManual({encounter,ownedPals});return{status:'unsupported',reason:'Nicht freigegeben.',dataQuality:'missing'};}
 
-function skillMetrics(skill, pal, encounter, profile) {
-  const record = skillRecord(skill);
-  const rawPower = NUMBER(record?.power ?? skill?.power);
-  const cooldown = Math.max(0.5, NUMBER(record?.cool_time ?? record?.cooldown ?? skill?.cooldown) || 10);
-  const rawElement = record?.element ?? skill?.element ?? 'Neutral';
-  const element = ELEMENT_MAP[rawElement] || rawElement;
-  const targetElements = encounter?.phases?.length
-    ? encounter.phases.flatMap(phase => phase.elements || [])
-    : encounter?.elements || [];
-  const wanted = new Set(targetElements.map(value => COUNTER[value]).filter(Boolean));
-  const counterFit = wanted.has(element) ? 1.5 : 1;
-  const stab = elementsOf(pal).includes(element) ? 1.2 : 1;
-
-  // Animation, projectile travel and hit rate are not consistently available yet.
-  // Conservative assumptions are explicit and returned to the caller.
-  const animation = NUMBER(record?.animation) || 1.25;
-  const hitRate = NUMBER(record?.hit_rate) || 0.72;
-  const practicalScore = rawPower > 0
-    ? (rawPower * counterFit * stab * hitRate) / (cooldown + animation)
-    : 0;
-
-  return {
-    id: skill?.id,
-    name: skill?.name || skill?.id || 'Unbekannter Skill',
-    element,
-    rawPower,
-    cooldown,
-    animation,
-    hitRate,
-    practicalScore,
-    assumptions: [
-      record?.animation ? null : 'Animationsdauer konservativ mit 1,25 s modelliert',
-      record?.hit_rate ? null : 'Trefferquote konservativ mit 72 % modelliert'
-    ].filter(Boolean)
-  };
-}
-
-function profileFor(playerState, pal) {
-  const source = playerState?.palProfiles?.[pal.key] || playerState?.palProfiles?.[pal.internalId] || {};
-  return {
-    ...DEFAULT_PROFILE,
-    ...source,
-    ivs: { ...DEFAULT_PROFILE.ivs, ...(source.ivs || {}) },
-    souls: { ...DEFAULT_PROFILE.souls, ...(source.souls || {}) }
-  };
-}
-
-function availableSkills(pal, profile, encounter) {
-  const selected = new Set(profile.activeSkills || profile.activeSkillIds || []);
-  return (pal?.skills || [])
-    .filter(skill => NUMBER(skill.level) <= NUMBER(profile.level || 75))
-    .filter(skill => !selected.size || selected.has(skill.id))
-    .map(skill => skillMetrics(skill, pal, encounter, profile))
-    .filter(skill => skill.rawPower > 0)
-    .sort((a, b) => b.practicalScore - a.practicalScore);
-}
-
-function isUsablePal(pal) {
-  if (!pal?.key || !pal?.name || BLOCKED_ID.test(`${pal.internalId || ''} ${pal.name}`)) return false;
-  if (pal.flags?.towerBoss || pal.flags?.raidBoss) return false;
-  if (pal.rawRecord?.capture_rate_correct === 0) return false;
-  return NUMBER(pal.stats?.attack) > 0 && Array.isArray(pal.skills) && pal.skills.length > 0;
-}
-
-function partnerEffects(pal) {
-  return Array.isArray(pal?.partner?.effects) ? pal.partner.effects : [];
-}
-
-function effectQuality(effect) {
-  if (effect?.status === 'verified' || effect?.confidence === 'high') return 1;
-  if (effect?.status === 'community-tested' || effect?.confidence === 'medium') return 0.7;
-  if (effect?.status === 'modelled') return 0.45;
-  return 0.25;
-}
-
-function supportUtility(pal, carry, activity) {
-  let utility = 0;
-  const reasons = [];
-  const carryElements = new Set(elementsOf(carry.pal));
-
-  for (const effect of partnerEffects(pal)) {
-    const activation = effect.activation || 'unknown';
-    const appliesInParty = activation === 'in_party' || effect.appliesTo === 'party' || !effect.activation;
-    if (!appliesInParty && activity !== 'raid') continue;
-
-    const numeric = NUMBER(effect.value ?? effect.percent ?? effect.amount);
-    const quality = effectQuality(effect);
-    const targetElement = effect.element || effect.targetElement;
-    const matchingElement = !targetElement || carryElements.has(targetElement);
-    let weight = 0;
-
-    if (['pal_element_attack', 'weakpoint_damage', 'pal_attack', 'party_pal_attack'].includes(effect.type) && matchingElement) weight = 8;
-    if (['cooldown_reduction', 'party_follow_attack'].includes(effect.type)) weight = 6;
-    if (['player_attack', 'player_weapon_damage'].includes(effect.type)) weight = 5;
-    if (['heal_player', 'revive_player', 'life_steal', 'damage_reduction'].includes(effect.type)) weight = 4;
-
-    if (weight) {
-      const contribution = weight * quality * (numeric ? Math.min(3, numeric / 10) : 0.5);
-      utility += contribution;
-      reasons.push(`${pal.partner?.name || 'Partnerfähigkeit'}: ${effect.type}${numeric ? ` (${numeric})` : ' (Wert offen)'}`);
-    }
-  }
-
-  return { utility, reasons };
-}
-
-function carryModel(pal, profile, encounter) {
-  const rotation = availableSkills(pal, profile, encounter).slice(0, 3);
-  if (!rotation.length) return null;
-
-  const levelFactor = 0.55 + Math.min(75, Math.max(1, NUMBER(profile.level || 75))) / 75 * 0.45;
-  const ivFactor = 1 + Math.min(100, Math.max(0, NUMBER(profile.ivs?.attack))) * 0.003;
-  const soulFactor = 1 + Math.min(10, Math.max(0, NUMBER(profile.souls?.attack))) * 0.03;
-  const attackModel = NUMBER(pal.stats?.attack) * levelFactor * ivFactor * soulFactor;
-  const practical = rotation.reduce((sum, skill) => sum + skill.practicalScore, 0) * attackModel / 100;
-
-  return {
-    pal,
-    profile,
-    rotation,
-    relativeCombatValue: practical,
-    estimatedDpsRange: {
-      low: practical * 0.55,
-      high: practical * 0.95
-    },
-    assumptions: [...new Set(rotation.flatMap(skill => skill.assumptions))]
-  };
-}
-
-function combinations(items, choose, start = 0, prefix = [], output = []) {
-  if (prefix.length === choose) {
-    output.push(prefix);
-    return output;
-  }
-  for (let index = start; index <= items.length - (choose - prefix.length); index += 1) {
-    combinations(items, choose, index + 1, [...prefix, items[index]], output);
-  }
-  return output;
-}
-
-function describeRole(member, carry) {
-  if (member.pal.key === carry.pal.key) return 'Aktiver Haupt-Pal';
-  const types = partnerEffects(member.pal).map(effect => effect.type);
-  if (types.some(type => ['pal_element_attack', 'weakpoint_damage', 'pal_attack', 'party_pal_attack'].includes(type))) return 'Schadensverstärker';
-  if (types.some(type => ['cooldown_reduction', 'party_follow_attack'].includes(type))) return 'Tempo-/Begleitsupport';
-  if (types.some(type => ['player_attack', 'player_weapon_damage'].includes(type))) return 'Spieler-Support';
-  if (types.some(type => ['heal_player', 'revive_player', 'life_steal', 'damage_reduction'].includes(type))) return 'Sustain-Support';
-  return 'Alternative / Wechsel-Pal';
-}
-
-function optimizeFivePalTeam({ encounter, playerState, ownedPals, constraints = {}, optimizationGoal = 'practical' }) {
-  const ownedIds = new Set((ownedPals || []).map(item => item.catalogId || item.key || item.internalId));
-  const ownedOnly = constraints.ownedOnly === true;
-  const source = PAL_CATALOG.filter(pal => isUsablePal(pal) && (!ownedOnly || ownedIds.has(pal.key) || ownedIds.has(pal.internalId)));
-  const carries = source
-    .map(pal => carryModel(pal, profileFor(playerState, pal), encounter))
-    .filter(Boolean)
-    .sort((a, b) => b.relativeCombatValue - a.relativeCombatValue)
-    .slice(0, 8);
-
-  if (!carries.length) {
-    return { status: 'insufficient-data', reason: 'Kein Pal mit auswertbarer Skillrotation verfügbar.', teams: [] };
-  }
-
-  let best = null;
-  for (const carry of carries) {
-    const supportPool = source
-      .filter(pal => pal.key !== carry.pal.key)
-      .map(pal => ({ pal, ...supportUtility(pal, carry, 'five_pal_team') }))
-      .sort((a, b) => b.utility - a.utility)
-      .slice(0, 14);
-
-    const candidateGroups = combinations(supportPool, Math.min(4, supportPool.length));
-    for (const group of candidateGroups) {
-      const supportScore = group.reduce((sum, member) => sum + member.utility, 0);
-      const qualitativeSurvival = group.filter(member => member.reasons.some(reason => /heal|revive|damage_reduction|life_steal/i.test(reason))).length * 2;
-      const score = carry.relativeCombatValue + supportScore + qualitativeSurvival;
-      if (!best || score > best.score) best = { carry, group, score };
-    }
-  }
-
-  if (!best) return { status: 'insufficient-data', reason: 'Keine vollständige Fünferkombination berechenbar.', teams: [] };
-
-  const members = [best.carry, ...best.group.map(member => ({
-    pal: member.pal,
-    profile: profileFor(playerState, member.pal),
-    rotation: [],
-    relativeCombatValue: 0,
-    estimatedDpsRange: null,
-    assumptions: [],
-    supportUtility: member.utility,
-    supportReasons: member.reasons
-  }))].map(member => ({ ...member, role: describeRole(member, best.carry) }));
-
-  return {
-    status: 'ok',
-    model: 'single-active-pal',
-    optimizationGoal,
-    teams: [{
-      id: 'best-practical',
-      label: 'Bestes nachvollziehbares Team',
-      members,
-      relativeTeamValue: best.score,
-      estimatedActivePalDpsRange: best.carry.estimatedDpsRange,
-      dataQuality: 'modelled',
-      assumptions: [
-        ...best.carry.assumptions,
-        'Nur der aktive Haupt-Pal trägt eigenen Pal-Schaden bei.',
-        'Support-Effekte ohne verifizierten Zahlenwert werden nur qualitativ gewichtet.',
-        'Keine sekundengenaue Schadensgarantie.'
-      ]
-    }]
-  };
-}
-
-/**
- * Single public optimization entry point.
- */
-export function optimizeTeam({
-  activity,
-  encounter,
-  playerState = {},
-  ownedPals = [],
-  constraints = {},
-  optimizationGoal = 'practical'
-} = {}) {
-  if (!activity) throw new TypeError('activity is required');
-  if (!encounter) throw new TypeError('encounter is required');
-
-  if (activity === 'raid') {
-    return {
-      status: 'unsupported',
-      model: 'raid-pending',
-      reason: 'Die frühere Fünferteam-Summenlogik ist deaktiviert. Das getrennte Raid-Armee-Modell wird in Phase 2 konsolidiert.',
-      teams: [],
-      dataQuality: 'missing'
-    };
-  }
-
-  if (['normal_team', 'tower', 'alpha_boss'].includes(activity)) {
-    return optimizeFivePalTeam({ encounter, playerState, ownedPals, constraints, optimizationGoal });
-  }
-
-  return {
-    status: 'unsupported',
-    reason: `Für ${activity} existiert noch kein freigegebenes Berechnungsmodell.`,
-    teams: [],
-    dataQuality: 'missing'
-  };
-}
-
-export const OPTIMIZER_API_VERSION = '1.0.0';
+export const OPTIMIZER_API_VERSION='2.0.0';
