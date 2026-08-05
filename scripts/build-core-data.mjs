@@ -38,8 +38,9 @@ for(const [id,elements] of Object.entries(types.elements||{})){
     name,
     element:(elements||[]).map(x=>deElement[x]||x).join('/'),
     work:{},
-    partner:{name:'Partner Skill pending',description:'English fallback entry. Partner skill data has not yet been mapped to this Pal.',effects:[{type:'pending_partner_text'}]},
-    languageStatus:'en-fallback',
+    partner:{name:'Partner Skill pending (EN)',description:'English fallback. The Partner Skill is not yet mapped to this Pal and is excluded from calculations.',effects:[{type:'pending_partner_text'}]},
+    languageStatus:'de-pending',
+    translationStatus:'en-fallback',
     source:'Noval1th/PalworldDashboard 2026-07',
     verified:true,
     canonical:true
