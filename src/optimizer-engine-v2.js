@@ -1,4 +1,4 @@
-import './generated-core.js';
+import { ACTIVE_SKILL_RECORDS } from './generated-core.js';
 import './generated-partner-data.js';
 import { PAL_CATALOG } from './catalog.js';
 import { RAID_PROFILES, TOWER_PROFILES } from './encounter-overrides.js';
@@ -7,12 +7,14 @@ const N=v=>Number(v)||0;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const els=p=>String(p?.element||'').split('/').map(x=>x.trim()).filter(Boolean);
 const counters={Feuer:'Wasser',Wasser:'Elektro',Gras:'Feuer',Elektro:'Erde',Eis:'Feuer',Erde:'Gras',Schatten:'Drache',Drache:'Eis',Neutral:'Schatten'};
-const skillPower=s=>N(s?.data?.power??s?.data?.Power??s?.power);
-const skillCd=s=>Math.max(.5,N(s?.data?.cooldown??s?.data?.cool_time??s?.data?.CoolTime??s?.cooldown)||10);
-const skillElement=s=>String(s?.data?.element??s?.data?.type??s?.type??'Neutral');
+const elementMap={Normal:'Neutral',Neutral:'Neutral',Fire:'Feuer',Water:'Wasser',Leaf:'Gras',Grass:'Gras',Electricity:'Elektro',Electric:'Elektro',Ice:'Eis,',Ground:'Erde',Earth:'Erde',Dark:'Schatten',Dragon:'Drache'};
+const skillRecord=s=>s?.data||ACTIVE_SKILL_RECORDS?.[s?.id]||ACTIVE_SKILL_RECORDS?.[`EPalWazaID::${s?.id}`]||null;
+const skillPower=s=>N(skillRecord(s)?.power??skillRecord(s)?.Power??s?.power);
+const skillCd=s=>Math.max(.5,N(skillRecord(s)?.cooldown??skillRecord(s)?.cool_time??skillRecord(s)?.CoolTime??s?.cooldown)||10);
+const skillElement=s=>{const raw=String(skillRecord(s)?.element??skillRecord(s)?.type??s?.type??'Neutral');return elementMap[raw]||raw;};
 const skillName=s=>s?.name||s?.id||'Unbekannter Skill';
 
-export const ENGINE_VERSION='2.0.1-core-bound';
+export const ENGINE_VERSION='2.0.2-skill-resolved';
 export const DEFAULT_PLAYER={level:75,attack:100,weaponName:'Nicht erfasst',weaponDps:0,reloadFactor:1,element:'Neutral',foodMultiplier:1,accessoryMultiplier:1};
 export const DEFAULT_PAL_PROFILE={level:75,stars:0,ivs:{hp:0,attack:0,defense:0},souls:{hp:0,attack:0,defense:0,work:0},passives:[],activeSkillIds:[],implants:[],alpha:false,lucky:false};
 
@@ -87,8 +89,8 @@ export function buildRotation(pal,profile,encounter){
   const stats=combatStats(pal,profile), targetElements=encounter?.elements||[], preferred=[...new Set(targetElements.map(e=>counters[e]).filter(Boolean))];
   const rows=availableSkills(pal,profile).filter(s=>skillPower(s)>0).map(s=>{
     const cd=skillCd(s)*stats.cooldownMultiplier, power=skillPower(s), element=skillElement(s);
-    const counter=preferred.some(e=>element.toLowerCase().includes(e.toLowerCase()));
-    const stab=els(pal).some(e=>element.toLowerCase().includes(e.toLowerCase()));
+    const counter=preferred.some(e=>element===e);
+    const stab=els(pal).some(e=>element===e);
     const effectivePower=power*(counter?1.5:1)*(stab?1.2:1)*(1+stats.elementBonus);
     return{s,name:skillName(s),element,power,cd,counter,stab,throughput:effectivePower/cd,effectivePower};
   }).sort((a,b)=>b.throughput-a.throughput);
@@ -131,7 +133,7 @@ export function simulateBattle({encounter,members=[],player=DEFAULT_PLAYER,tick=
 }
 
 export function optimizeRaidArmy({encounter,profiles={},player=DEFAULT_PLAYER,maxSlots=20,ownedOnly=false,ownedIds=[]}){
-  const source=PAL_CATALOG.filter(p=>(p.skills||[]).length&&p?.stats?.attack>0&&(!ownedOnly||ownedIds.includes(p.key)));
+  const source=PAL_CATALOG.filter(p=>(p.skills||[]).some(s=>skillPower(s)>0)&&p?.stats?.attack>0&&(!ownedOnly||ownedIds.includes(p.key)));
   const ranked=source.map(p=>{const profile=profiles[p.key]||DEFAULT_PAL_PROFILE;const est=estimatePalDps(p,profile,encounter);const stats=combatStats(p,profile);return{pal:p,profile,dps:est.dps,survival:stats.hp+stats.defense*1.5,rotation:est.rotation};}).sort((a,b)=>(b.dps+b.survival*.02)-(a.dps+a.survival*.02));
   const army=[];
   for(let i=0;i<maxSlots&&ranked.length;i++)army.push(ranked[i%Math.min(ranked.length,8)]);
