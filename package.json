@@ -1,0 +1,8 @@
+{
+  "name": "palwerk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:optimizer": "node scripts/test-optimizer-v2.mjs"
+  }
+}
