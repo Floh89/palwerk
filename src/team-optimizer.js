@@ -30,8 +30,7 @@ function buildTeam(owned,element,mode){
     addUnique(team,sustain[1],'Zweite belegte Überlebensfunktion für längere Kämpfe.');
     addUnique(team,follow[0],'Zusätzliche aktive oder begleitende Angriffsquelle.');
   }else if(mode==='player'){
-    const playerBuffs=offensive.filter(p=>hasEffect(p,['player_attack','player_weapon_damage','player_attack_element_conversion']));
-    playerBuffs.forEach(p=>addUnique(team,p,'Expliziter Effekt auf den Spielerangriff oder die Schadensart.'));
+    offensive.filter(p=>hasEffect(p,['player_attack','player_weapon_damage','player_attack_element_conversion'])).forEach(p=>addUnique(team,p,'Expliziter Effekt auf den Spielerangriff oder die Schadensart.'));
     addUnique(team,sustain[0],'Absicherung durch belegte Heilung oder Wiederbelebung.');
   }else{
     offensive.forEach(p=>addUnique(team,p,'Explizit strukturierter offensiver Support-Effekt.'));
@@ -49,7 +48,7 @@ async function renderTeamOptimizer(){
   const owned=catalogOwned(state);
   app.innerHTML=`<button class="back-link" id="teamBack">‹ Optimieren</button><section class="hero compact-hero"><div><p class="eyebrow">TEAM & SUPPORT</p><h2>Nur baubare Teams</h2><p>Keine DPS-Schätzung ohne Kampfdaten. PALWERK nutzt ausschließlich Besitz, Sterne, Level und strukturierte Partnerfähigkeiten.</p></div></section>${owned.length?`<section class="card"><form id="teamOptimizerForm" class="form"><div class="field"><label>Hauptelement</label><select name="element"><option value="">Beliebig</option>${elements.map(e=>`<option>${e}</option>`).join('')}</select></div><div class="field"><label>Priorität</label><select name="mode"><option value="damage">Pal-Schaden und Support</option><option value="player">Spieler-Schaden</option><option value="safe">Sicherer Kampf</option></select></div><button class="primary">Team berechnen</button></form></section><div id="teamOptimizerResult"></div>`:`<section class="card"><h3>Kein Bestand</h3><p>Übernimm zuerst deine vorhandenen Pals aus dem Paldex.</p></section>`}${state.teamPlans.length?`<section class="card"><h3>Gespeicherte Teams</h3><div class="list">${state.teamPlans.slice(-5).reverse().map(t=>`<div class="list-item"><div><strong>${esc(t.name)}</strong><small>${(t.members||[]).map(m=>esc(m.name)).join(' · ')}</small></div><span class="badge">${esc(t.modeLabel||'Team')}</span></div>`).join('')}</div></section>`:''}`;
   document.querySelector('#teamBack')?.addEventListener('click',()=>document.querySelector('.tab[data-route="optimieren"]')?.click());
-  document.querySelector('#teamOptimizerForm')?.addEventListener('submit',e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.currentTarget));const team=buildTeam(owned,data.element,data.mode);renderResult(team,data,state)});
+  document.querySelector('#teamOptimizerForm')?.addEventListener('submit',e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.currentTarget));renderResult(buildTeam(owned,data.element,data.mode),data,state)});
   busy=false;
 }
 
@@ -65,5 +64,6 @@ function inject(){
   if(!grid||grid.querySelector('[data-team-support]'))return;
   const button=document.createElement('button');button.className='module-card';button.dataset.teamSupport='';button.innerHTML='<div class="module-icon">◇</div><div><h3>Team & Support</h3><p>Baubare Synergien aus deinem Bestand</p></div><span class="badge">Aktiv</span>';button.addEventListener('click',renderTeamOptimizer);grid.prepend(button);
 }
-new MutationObserver(inject).observe(app,{childList:true,subtree:true});
-inject();
+
+const style=document.createElement('style');style.textContent='.team-slots{display:grid;gap:10px;margin:14px 0}.team-slot{display:grid;grid-template-columns:38px 1fr;gap:12px;align-items:start;padding:14px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.04)}.team-slot>span{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(121,230,197,.12);color:var(--accent);font-weight:800}.team-slot strong,.team-slot small,.team-slot em{display:block}.team-slot small{color:var(--muted);margin-top:3px}.team-slot em{color:#cbd8f8;font-size:12px;margin-top:5px;font-style:normal}.reason-box{margin:14px 0;padding:15px;border-radius:16px;background:rgba(122,167,255,.08);border:1px solid rgba(122,167,255,.15)}.reason-box p{margin:9px 0 0!important}.notice{border-left:3px solid var(--accent2);padding:12px 14px;background:rgba(122,167,255,.08);border-radius:12px;color:#cbd8f8;font-size:13px;line-height:1.45}';document.head.appendChild(style);
+new MutationObserver(inject).observe(app,{childList:true,subtree:true});inject();
