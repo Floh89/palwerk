@@ -7,14 +7,14 @@ const N=v=>Number(v)||0;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const els=p=>String(p?.element||'').split('/').map(x=>x.trim()).filter(Boolean);
 const counters={Feuer:'Wasser',Wasser:'Elektro',Gras:'Feuer',Elektro:'Erde',Eis:'Feuer',Erde:'Gras',Schatten:'Drache',Drache:'Eis',Neutral:'Schatten'};
-const elementMap={Normal:'Neutral',Neutral:'Neutral',Fire:'Feuer',Water:'Wasser',Leaf:'Gras',Grass:'Gras',Electricity:'Elektro',Electric:'Elektro',Ice:'Eis,',Ground:'Erde',Earth:'Erde',Dark:'Schatten',Dragon:'Drache'};
+const elementMap={Normal:'Neutral',Neutral:'Neutral',Fire:'Feuer',Water:'Wasser',Leaf:'Gras',Grass:'Gras',Electricity:'Elektro',Electric:'Elektro',Ice:'Eis',Ground:'Erde',Earth:'Erde',Dark:'Schatten',Dragon:'Drache'};
 const skillRecord=s=>s?.data||ACTIVE_SKILL_RECORDS?.[s?.id]||ACTIVE_SKILL_RECORDS?.[`EPalWazaID::${s?.id}`]||null;
 const skillPower=s=>N(skillRecord(s)?.power??skillRecord(s)?.Power??s?.power);
 const skillCd=s=>Math.max(.5,N(skillRecord(s)?.cooldown??skillRecord(s)?.cool_time??skillRecord(s)?.CoolTime??s?.cooldown)||10);
 const skillElement=s=>{const raw=String(skillRecord(s)?.element??skillRecord(s)?.type??s?.type??'Neutral');return elementMap[raw]||raw;};
 const skillName=s=>s?.name||s?.id||'Unbekannter Skill';
 
-export const ENGINE_VERSION='2.0.2-skill-resolved';
+export const ENGINE_VERSION='2.0.3-element-fixed';
 export const DEFAULT_PLAYER={level:75,attack:100,weaponName:'Nicht erfasst',weaponDps:0,reloadFactor:1,element:'Neutral',foodMultiplier:1,accessoryMultiplier:1};
 export const DEFAULT_PAL_PROFILE={level:75,stars:0,ivs:{hp:0,attack:0,defense:0},souls:{hp:0,attack:0,defense:0,work:0},passives:[],activeSkillIds:[],implants:[],alpha:false,lucky:false};
 
