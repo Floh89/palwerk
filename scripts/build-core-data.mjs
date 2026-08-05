@@ -13,7 +13,8 @@ const dePals=read('pals-de.json');
 const deActive=read('active-skills-de.json');
 const dePassive=read('passive-skills-de.json');
 
-const deElement={Neutral:'Neutral',Fire:'Feuer',Water:'Wasser',Grass:'Gras',Electric:'Elektro',Ice:'Eis',Ground:'Erde',Dark:'Schatten',Dragon:'Drache'};
+const deElement={Normal:'Neutral',Neutral:'Neutral',Fire:'Feuer',Water:'Wasser',Grass:'Gras',Electric:'Elektro',Ice:'Eis',Ground:'Erde',Dark:'Schatten',Dragon:'Drache'};
+const workMap={EmitFlame:'kindling',Watering:'watering',Seeding:'planting',GenerateElectricity:'generating',Handcraft:'handiwork',Collection:'gathering',Deforest:'lumbering',Mining:'mining',OilExtraction:'oilExtraction',ProductMedicine:'medicine',Cool:'cooling',Transport:'transporting',MonsterFarm:'farming'};
 const suffixes=Object.fromEntries(Object.entries(names.suffixes||{}).map(([k,v])=>[k.toLowerCase(),v]));
 const baseNames=Object.fromEntries(Object.entries(names.names||{}).map(([k,v])=>[k.toLowerCase(),v]));
 const overrides=Object.fromEntries(Object.entries(names.overrides||{}).map(([k,v])=>[k.toLowerCase(),v]));
@@ -22,14 +23,13 @@ const slug=value=>String(value).toLowerCase().normalize('NFKD').replace(/[\u0300
 const forbiddenPrefixes=['gym_','predator_','raid_','summon_','police_','quest_','boss_','arena_','npc_','human_'];
 const forbiddenParts=['_oilrig','_tower','_quest_','_avatar','_servant','_max','_enemy','_friend','_invader','_summon','_boss'];
 
-function isPlayableId(rawId){
+function isPlayableId(rawId,record={}){
   const id=String(rawId).toLowerCase();
-  return !forbiddenPrefixes.some(prefix=>id.startsWith(prefix))&&!forbiddenParts.some(part=>id.includes(part));
+  return record.is_pal!==false&&!record.disabled&&Number(record.pal_deck_index??0)>=0&&!forbiddenPrefixes.some(prefix=>id.startsWith(prefix))&&!forbiddenParts.some(part=>id.includes(part));
 }
-function localizedName(id){
-  const row=dePals?.[id]||dePals?.[Object.keys(dePals||{}).find(key=>key.toLowerCase()===String(id).toLowerCase())];
-  return row?.localized_name||row?.name||null;
-}
+function localizedRow(source,id){return source?.[id]||source?.[Object.keys(source||{}).find(key=>key.toLowerCase()===String(id).toLowerCase())]||null}
+function localizedName(id){const row=localizedRow(dePals,id);return row?.localized_name||row?.name||null}
+function localizedDescription(id){return localizedRow(dePals,id)?.description||null}
 function resolveFallbackName(id){
   const lower=String(id).toLowerCase();
   if(overrides[lower])return overrides[lower];
@@ -41,98 +41,68 @@ function resolveFallbackName(id){
   return parts.length===1&&suffixes[parts[0]]?`${baseNames[base]} ${suffixes[parts[0]]}`:null;
 }
 function preferredName(id){return localizedName(id)||resolveFallbackName(id)||String(id).replaceAll('_',' ')}
-function baseRow(id,elements){
+function localizedSkill(id){const row=localizedRow(deActive,id);return {name:row?.localized_name||row?.name||id,description:row?.description||null,languageStatus:row?'de-confirmed':'en-fallback'}}
+function localizedPassive(id){const row=localizedRow(dePassive,id);return {name:row?.localized_name||row?.name||id,description:row?.description||null,languageStatus:row?'de-confirmed':'en-fallback'}}
+function normalizedWork(record){const result={};for(const [source,target] of Object.entries(workMap)){const value=Number(record?.work_suitability?.[source]||0);if(value>0)result[target]=value}return result}
+function normalizedSkills(record){return Object.entries(record?.skill_set||{}).map(([skillId,level])=>({id:skillId,level:Number(level),...localizedSkill(skillId),data:fullActive?.[skillId]||null})).sort((a,b)=>a.level-b.level||a.name.localeCompare(b.name,'de'))}
+function normalizedPassives(record){return (record?.passive_skills||[]).map(passiveId=>({id:passiveId,...localizedPassive(passiveId),data:fullPassive?.[passiveId]||null}))}
+function baseRow(id,record){
   const name=preferredName(id);
+  const elements=record?.element_types||types.elements?.[id]||[];
   return {
     key:`canonical-${slug(id)}`,
     internalId:id,
-    paldeck:null,
+    paldeck:Number(record?.pal_deck_index)>=0?String(record.pal_deck_index).padStart(3,'0'):null,
     name,
-    element:(elements||[]).map(x=>deElement[x]||x).join('/'),
-    work:{},
+    description:localizedDescription(id),
+    element:elements.map(x=>deElement[x]||x).join('/'),
+    work:normalizedWork(record),
+    stats:{hp:Number(record?.scaling?.hp||0),attack:Number(record?.scaling?.attack||0),defense:Number(record?.scaling?.defense||0),stamina:Number(record?.stamina||0),rarity:Number(record?.rarity||0),size:record?.size||null},
+    movement:{walk:Number(record?.walk_speed||0),run:Number(record?.run_speed||0),rideSprint:Number(record?.ride_sprint_speed||0),transport:Number(record?.transport_speed||0)},
+    skills:normalizedSkills(record),
+    fixedPassives:normalizedPassives(record),
+    breeding:{rank:Number(record?.combi_rank||0),maleProbability:Number(record?.male_probability??50)},
+    flags:{boss:Boolean(record?.is_boss),towerBoss:Boolean(record?.is_tower_boss),raidBoss:Boolean(record?.is_raid_boss),predator:Boolean(record?.predator),nocturnal:Boolean(record?.nocturnal),edible:Boolean(record?.edible)},
+    economy:{price:Number(record?.price||0),food:Number(record?.food_amount||0)},
+    iconId:record?.icon||null,
     partner:{name:'Partnerfähigkeit noch nicht normalisiert',description:'Der Originaldatensatz ist vorhanden, wird aber erst nach eindeutiger Zuordnung für Berechnungen verwendet.',effects:[{type:'pending_partner_text'}]},
     languageStatus:localizedName(id)?'de-confirmed':'de-pending',
     translationStatus:localizedName(id)?'de-official':'en-fallback',
-    source:'canonical-1.0',
-    verified:true,
-    canonical:true
+    source:'canonical-1.0',verified:true,canonical:true
   };
 }
-function richness(row){
-  return (row?.paldeck?2:0)+Object.keys(row?.work||{}).length*2+(row?.partner?.effects||[]).filter(e=>e.type!=='pending_partner_text').length*4+(row?.languageStatus==='de-confirmed'?2:0)+(row?.verified?1:0);
-}
+function richness(row){return (row?.paldeck?2:0)+Object.keys(row?.work||{}).length*2+(row?.skills?.length||0)+(row?.partner?.effects||[]).filter(e=>e.type!=='pending_partner_text').length*4+(row?.languageStatus==='de-confirmed'?2:0)+(row?.verified?1:0)}
 function mergeRows(primary,secondary){
-  const richer=richness(primary)>=richness(secondary)?primary:secondary;
-  const other=richer===primary?secondary:primary;
-  const partnerEffects=[...(richer.partner?.effects||[]),...(other.partner?.effects||[])];
-  const dedupedEffects=[...new Map(partnerEffects.map(effect=>[JSON.stringify(effect),effect])).values()];
-  return {
-    ...other,
-    ...richer,
-    internalId:richer.internalId||other.internalId,
-    paldeck:richer.paldeck||other.paldeck||null,
-    name:richer.name||other.name,
-    element:richer.element||other.element||'',
-    work:{...(other.work||{}),...(richer.work||{})},
-    partner:{...(other.partner||{}),...(richer.partner||{}),effects:dedupedEffects.length?dedupedEffects:[{type:'pending_partner_text'}]},
-    aliases:[...new Set([...(other.aliases||[]),...(richer.aliases||[]),other.name,richer.name].filter(Boolean))],
-    canonical:true
-  };
+  const richer=richness(primary)>=richness(secondary)?primary:secondary,other=richer===primary?secondary:primary;
+  const effects=[...(richer.partner?.effects||[]),...(other.partner?.effects||[])];
+  const skills=[...(richer.skills||[]),...(other.skills||[])];
+  return {...other,...richer,internalId:richer.internalId||other.internalId,paldeck:richer.paldeck||other.paldeck||null,name:richer.name||other.name,element:richer.element||other.element||'',work:{...(other.work||{}),...(richer.work||{})},stats:{...(other.stats||{}),...(richer.stats||{})},movement:{...(other.movement||{}),...(richer.movement||{})},skills:[...new Map(skills.map(x=>[x.id,x])).values()].sort((a,b)=>(a.level||0)-(b.level||0)),fixedPassives:[...new Map([...(richer.fixedPassives||[]),...(other.fixedPassives||[])].map(x=>[x.id,x])).values()],partner:{...(other.partner||{}),...(richer.partner||{}),effects:[...new Map(effects.map(e=>[JSON.stringify(e),e])).values()]},aliases:[...new Set([...(other.aliases||[]),...(richer.aliases||[]),other.name,richer.name].filter(Boolean))],canonical:true};
 }
 
-const expectedIds=Object.keys(types.elements||{}).filter(isPlayableId);
-const generated=expectedIds.map(id=>baseRow(id,types.elements[id]));
+const expectedEntries=Object.entries(fullPals||{}).filter(([id,record])=>isPlayableId(id,record));
+const generated=expectedEntries.map(([id,record])=>baseRow(id,record));
 const generatedById=new Map(generated.map(row=>[normalize(row.internalId),row]));
 const duplicateGeneratedIds=generated.length-generatedById.size;
 const generatedByName=new Map();
-for(const row of generatedById.values()){
-  const nameKey=normalize(row.name);
-  if(!generatedByName.has(nameKey))generatedByName.set(nameKey,row);
-  else generatedByName.set(nameKey,mergeRows(generatedByName.get(nameKey),row));
-}
-const canonical=[...generatedByName.values()].sort((a,b)=>a.name.localeCompare(b.name,'de'));
-const missingIds=expectedIds.filter(id=>!generatedById.has(normalize(id)));
-const duplicateLocalizedNames=[...generated.reduce((map,row)=>{const key=normalize(row.name);map.set(key,(map.get(key)||0)+1);return map},new Map())].filter(([,count])=>count>1).map(([name,count])=>({name,count}));
-
-const moveList=Object.entries(moves.moves||{}).map(([key,value])=>({key,...value,languageStatus:'en-fallback'}));
-const passiveList=Object.entries(passives.passives||passives||{}).filter(([key])=>!key.startsWith('_')).map(([key,value])=>({key,...value,languageStatus:'en-fallback'}));
-const meta={
-  generatedAt:new Date().toISOString(),
-  expectedPlayableIds:expectedIds.length,
-  palCount:canonical.length,
-  missingIds,
-  duplicateGeneratedIds,
-  duplicateLocalizedNames,
-  moveCount:moveList.length,
-  passiveCount:passiveList.length,
-  fullPalRecords:Array.isArray(fullPals)?fullPals.length:Object.keys(fullPals||{}).length,
-  bossRecords:Array.isArray(bosses)?bosses.length:Object.keys(bosses||{}).length,
-  source:'Noval1th/PalworldDashboard + oMaN-Rod/palworld-save-pal'
+for(const row of generatedById.values()){const key=normalize(row.name);generatedByName.set(key,generatedByName.has(key)?mergeRows(generatedByName.get(key),row):row)}
+const canonical=[...generatedByName.values()].sort((a,b)=>String(a.paldeck||'999').localeCompare(String(b.paldeck||'999'),undefined,{numeric:true})||a.name.localeCompare(b.name,'de'));
+const missingIds=expectedEntries.map(([id])=>id).filter(id=>!generatedById.has(normalize(id)));
+const coverage={
+  total:canonical.length,
+  withGermanName:canonical.filter(x=>x.languageStatus==='de-confirmed').length,
+  withPaldeck:canonical.filter(x=>x.paldeck).length,
+  withWork:canonical.filter(x=>Object.keys(x.work||{}).length).length,
+  withSkills:canonical.filter(x=>x.skills?.length).length,
+  withFixedPassives:canonical.filter(x=>x.fixedPassives?.length).length,
+  withCombatStats:canonical.filter(x=>x.stats?.hp&&x.stats?.attack&&x.stats?.defense).length,
+  withBreedingRank:canonical.filter(x=>x.breeding?.rank>0).length,
+  withPartnerNormalized:canonical.filter(x=>(x.partner?.effects||[]).some(e=>e.type!=='pending_partner_text')).length
 };
+const moveList=Object.entries(moves.moves||{}).map(([key,value])=>({key,...value,...localizedSkill(key)}));
+const passiveList=Object.entries(passives.passives||passives||{}).filter(([key])=>!key.startsWith('_')).map(([key,value])=>({key,...value,...localizedPassive(key)}));
+const meta={generatedAt:new Date().toISOString(),expectedPlayableIds:expectedEntries.length,palCount:canonical.length,missingIds,duplicateGeneratedIds,coverage,moveCount:moveList.length,passiveCount:passiveList.length,fullPalRecords:Object.keys(fullPals||{}).length,bossRecords:Object.keys(bosses||{}).length,source:'Noval1th/PalworldDashboard + oMaN-Rod/palworld-save-pal'};
 
-const runtime=`import { PAL_CATALOG } from './catalog.js';\n`+
-`export const CANONICAL_META=${JSON.stringify(meta)};\n`+
-`export const ACTIVE_SKILLS=${JSON.stringify(moveList)};\n`+
-`export const PASSIVE_SKILLS=${JSON.stringify(passiveList)};\n`+
-`export const PAL_GAME_RECORDS=${JSON.stringify(fullPals)};\n`+
-`export const ACTIVE_SKILL_RECORDS=${JSON.stringify(fullActive)};\n`+
-`export const PASSIVE_SKILL_RECORDS=${JSON.stringify(fullPassive)};\n`+
-`export const BOSS_RECORDS=${JSON.stringify(bosses)};\n`+
-`export const DE_PAL_TEXTS=${JSON.stringify(dePals)};\n`+
-`export const DE_ACTIVE_SKILL_TEXTS=${JSON.stringify(deActive)};\n`+
-`export const DE_PASSIVE_SKILL_TEXTS=${JSON.stringify(dePassive)};\n`+
-`const CANONICAL=${JSON.stringify(canonical)};\n`+
-`const norm=v=>String(v??'').trim().toLowerCase().replace(/[^a-z0-9äöüß]+/g,'');\n`+
-`const score=row=>(row?.paldeck?2:0)+Object.keys(row?.work||{}).length*2+(row?.partner?.effects||[]).filter(e=>e.type!=='pending_partner_text').length*4+(row?.languageStatus==='de-confirmed'?2:0)+(row?.verified?1:0);\n`+
-`const merge=(a,b)=>{const rich=score(a)>=score(b)?a:b,other=rich===a?b:a;const effects=[...(rich.partner?.effects||[]),...(other.partner?.effects||[])];return {...other,...rich,internalId:rich.internalId||other.internalId,paldeck:rich.paldeck||other.paldeck||null,work:{...(other.work||{}),...(rich.work||{})},partner:{...(other.partner||{}),...(rich.partner||{}),effects:[...new Map(effects.map(e=>[JSON.stringify(e),e])).values()]},aliases:[...new Set([...(other.aliases||[]),...(rich.aliases||[]),other.name,rich.name].filter(Boolean))],canonical:true}};\n`+
-`const byId=new Map(),unmatched=[];\n`+
-`for(const row of PAL_CATALOG){const id=norm(row.internalId);if(id)byId.set(id,byId.has(id)?merge(byId.get(id),row):row);else unmatched.push(row)}\n`+
-`for(const row of CANONICAL){const id=norm(row.internalId);byId.set(id,byId.has(id)?merge(byId.get(id),row):row)}\n`+
-`const byName=new Map();for(const row of [...byId.values(),...unmatched]){const key=norm(row.name);if(!key)continue;byName.set(key,byName.has(key)?merge(byName.get(key),row):row)}\n`+
-`PAL_CATALOG.splice(0,PAL_CATALOG.length,...byName.values());\n`+
-`PAL_CATALOG.sort((a,b)=>String(a.paldeck||'999Z').localeCompare(String(b.paldeck||'999Z'),undefined,{numeric:true})||a.name.localeCompare(b.name,'de'));\n`+
-`const keys=new Set(),names=new Set();for(const row of PAL_CATALOG){const key=norm(row.key),name=norm(row.name);if(keys.has(key))throw new Error('Duplicate catalog key: '+row.key);if(names.has(name))throw new Error('Duplicate catalog name: '+row.name);keys.add(key);names.add(name)}\n`;
-
+const runtime=`import { PAL_CATALOG } from './catalog.js';\nexport const CANONICAL_META=${JSON.stringify(meta)};\nexport const ACTIVE_SKILLS=${JSON.stringify(moveList)};\nexport const PASSIVE_SKILLS=${JSON.stringify(passiveList)};\nexport const PAL_GAME_RECORDS=${JSON.stringify(fullPals)};\nexport const ACTIVE_SKILL_RECORDS=${JSON.stringify(fullActive)};\nexport const PASSIVE_SKILL_RECORDS=${JSON.stringify(fullPassive)};\nexport const BOSS_RECORDS=${JSON.stringify(bosses)};\nexport const DE_PAL_TEXTS=${JSON.stringify(dePals)};\nexport const DE_ACTIVE_SKILL_TEXTS=${JSON.stringify(deActive)};\nexport const DE_PASSIVE_SKILL_TEXTS=${JSON.stringify(dePassive)};\nconst CANONICAL=${JSON.stringify(canonical)};\nconst norm=v=>String(v??'').trim().toLowerCase().replace(/[^a-z0-9äöüß]+/g,'');\nconst score=row=>(row?.paldeck?2:0)+Object.keys(row?.work||{}).length*2+(row?.skills?.length||0)+(row?.partner?.effects||[]).filter(e=>e.type!=='pending_partner_text').length*4+(row?.languageStatus==='de-confirmed'?2:0);\nconst merge=(a,b)=>{const rich=score(a)>=score(b)?a:b,other=rich===a?b:a;const effects=[...(rich.partner?.effects||[]),...(other.partner?.effects||[])],skills=[...(rich.skills||[]),...(other.skills||[])];return {...other,...rich,internalId:rich.internalId||other.internalId,paldeck:rich.paldeck||other.paldeck||null,work:{...(other.work||{}),...(rich.work||{})},stats:{...(other.stats||{}),...(rich.stats||{})},movement:{...(other.movement||{}),...(rich.movement||{})},skills:[...new Map(skills.map(x=>[x.id,x])).values()],fixedPassives:[...new Map([...(rich.fixedPassives||[]),...(other.fixedPassives||[])].map(x=>[x.id,x])).values()],partner:{...(other.partner||{}),...(rich.partner||{}),effects:[...new Map(effects.map(e=>[JSON.stringify(e),e])).values()]},aliases:[...new Set([...(other.aliases||[]),...(rich.aliases||[]),other.name,rich.name].filter(Boolean))],canonical:true}};\nconst byId=new Map(),unmatched=[];for(const row of PAL_CATALOG){const id=norm(row.internalId);if(id)byId.set(id,byId.has(id)?merge(byId.get(id),row):row);else unmatched.push(row)}for(const row of CANONICAL){const id=norm(row.internalId);byId.set(id,byId.has(id)?merge(byId.get(id),row):row)}const byName=new Map();for(const row of [...byId.values(),...unmatched]){const key=norm(row.name);if(!key)continue;byName.set(key,byName.has(key)?merge(byName.get(key),row):row)}PAL_CATALOG.splice(0,PAL_CATALOG.length,...byName.values());PAL_CATALOG.sort((a,b)=>String(a.paldeck||'999Z').localeCompare(String(b.paldeck||'999Z'),undefined,{numeric:true})||a.name.localeCompare(b.name,'de'));const keys=new Set(),names=new Set();for(const row of PAL_CATALOG){const key=norm(row.key),name=norm(row.name);if(keys.has(key))throw new Error('Duplicate catalog key: '+row.key);if(names.has(name))throw new Error('Duplicate catalog name: '+row.name);keys.add(key);names.add(name)}\n`;
 fs.writeFileSync('src/generated-core.js',runtime);
 fs.writeFileSync('data-build-report.json',JSON.stringify(meta,null,2));
 console.log(JSON.stringify(meta,null,2));
