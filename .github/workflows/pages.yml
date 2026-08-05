@@ -41,6 +41,19 @@ jobs:
           curl -fL --retry 3 "$savepal/l10n/de/passive_skills.json" -o data/upstream/passive-skills-de.json
       - name: Generate offline catalog
         run: node scripts/build-core-data.mjs
+      - name: Bundle Pal images
+        run: |
+          rm -rf /tmp/palworld-api
+          git clone --depth 1 https://github.com/xpao24/palworld-api.git /tmp/palworld-api
+          mkdir -p assets/pals
+          cp /tmp/palworld-api/public/images/*.png assets/pals/
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          files=sorted(p.name for p in Path('assets/pals').glob('*.png'))
+          Path('assets/pals/manifest.json').write_text(json.dumps(files,separators=(',',':')),encoding='utf-8')
+          print(f'Bundled {len(files)} Pal images')
+          PY
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static app
