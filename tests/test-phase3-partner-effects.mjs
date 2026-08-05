@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import '../src/generated-core.js';
 import '../src/generated-partner-data.js';
 import { PAL_CATALOG } from '../src/catalog.js';
 import { resolveStacking, OPTIMIZER_API_VERSION } from '../src/optimizer/engine.js';
