@@ -48,9 +48,11 @@ test('Boss- und Raid-Karten besitzen feste Cluster-Attribute',()=>{assert.match(
 test('V3 fängt Boss und Raid vor dem alten Handler ab',()=>{assert.match(composer,/addEventListener\('click',[\s\S]*,true\)/);assert.match(composer,/stopImmediatePropagation/);});
 test('Nur der V3-Selektor ist aktiv eingebunden',()=>{assert.ok(index.includes('optimizer-composer-v3.js'));assert.ok(!index.includes('boss-raid-selector-v2.js'));assert.ok(!index.includes('boss-selector-fix.js'));});
 test('V3 enthält echte Encounter-Auswahl',()=>{assert.match(composer,/name="encounter"/);assert.match(composer,/encounterOptions\(type,difficulty\)/);});
-test('V3 baut fünf Teamrollen',()=>{for(const role of ['Main Carry','Schadens-Buff','Cooldown','Spieler-Buff','Überleben'])assert.ok(composer.includes(role));});
+test('V3 besitzt keine feste Rollenbelegung',()=>{assert.ok(!composer.includes("const configs=["));assert.ok(!composer.includes("slots.push({...found"));assert.match(composer,/searchForCarry/);assert.match(composer,/for\(let a=0;a<limit;a\+\+\)for\(let b=a\+1/);});
+test('V3 vergleicht mehrere Carry-Kandidaten',()=>{assert.match(composer,/slice\(0,10\)/);assert.match(composer,/for\(const carry of carries\)/);});
+test('V3 erlaubt mehrfache Support-Archetypen',()=>{assert.match(composer,/stackableFor/);assert.match(composer,/seenNonStackable/);assert.ok(composer.includes('Allgemeiner Buff'));assert.ok(composer.includes('Element-Buff'));});
 test('V3 filtert technische und nicht fangbare Sonderformen',()=>{assert.match(composer,/capture_rate_correct===0/);assert.match(composer,/towerBoss\|\|p\.flags\?\.raidBoss/);assert.match(composer,/astralym/);});
-test('V3 zeigt Synergie und Begründungen',()=>{assert.match(composer,/Synergieübersicht/);assert.match(composer,/Warum dieses Team/);assert.match(composer,/x\.reason/);});
+test('V3 zeigt dynamische Rollenstruktur und Begründungen',()=>{assert.match(composer,/DYNAMISCH OPTIMIERTE KOMPOSITION/);assert.match(composer,/Rollen wurden erst nach der Auswahl vergeben/);assert.match(composer,/x\.reason/);});
 
 const failed=tests.filter(x=>!x.ok);
 console.log(`\n${tests.length-failed.length}/${tests.length} Optimizer-Tests bestanden.`);
