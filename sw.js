@@ -1,4 +1,4 @@
-const CACHE='palwerk-shell-v33';
+const CACHE='palwerk-shell-v34';
 const ASSETS=['./','./index.html','./src/styles.css','./src/main.js','./src/app.js','./src/optimizer/engine.js','./src/optimizer/ui.js','./src/combat-data.js','./src/encounter-overrides.js','./src/data-enrichment-ui.js','./src/pal-images-ui.js','./src/storage.js','./src/catalog.js','./src/catalog-pack-5.js','./src/catalog-pack-6.js','./src/catalog-pack-7.js','./src/generated-core.js','./src/generated-partner-data.js','./manifest.webmanifest','./assets/icon.svg','./assets/pals/manifest.json'];
 self.addEventListener('install',event=>{event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll(ASSETS);try{const response=await fetch('./assets/pals/manifest.json');if(response.ok){const files=await response.json();await cache.addAll(files.map(file=>`./assets/pals/${file}`))}}catch(error){console.warn('Pal image precache incomplete',error)}await self.skipWaiting()})())});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()))});
