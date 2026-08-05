@@ -46,6 +46,8 @@ jobs:
         run: |
           node scripts/build-core-data.mjs
           node scripts/build-partner-data.mjs
+      - name: Test optimizer end-to-end logic
+        run: npm run test:optimizer
       - name: Bundle Pal images
         run: |
           rm -rf /tmp/palworld-api
