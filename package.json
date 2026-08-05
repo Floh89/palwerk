@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:optimizer": "node scripts/test-optimizer-v2.mjs"
+    "test": "npm run test:optimizer",
+    "test:optimizer": "node scripts/test-phase1-architecture.mjs"
   }
 }
