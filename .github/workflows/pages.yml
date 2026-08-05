@@ -23,6 +23,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Download canonical Palworld datasets
+        run: |
+          mkdir -p data/upstream
+          base="https://raw.githubusercontent.com/Noval1th/PalworldDashboard/main/collector"
+          curl --fail --location --retry 3 "$base/pal-names.json" -o data/upstream/pal-names.json
+          curl --fail --location --retry 3 "$base/pal-types.json" -o data/upstream/pal-types.json
+          curl --fail --location --retry 3 "$base/pal-moves.json" -o data/upstream/pal-moves.json
+          curl --fail --location --retry 3 "$base/pal-passives.json" -o data/upstream/pal-passives.json
+      - name: Generate offline catalog
+        run: node scripts/build-core-data.mjs
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static app
