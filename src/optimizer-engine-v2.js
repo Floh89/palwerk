@@ -1,3 +1,5 @@
+import './generated-core.js';
+import './generated-partner-data.js';
 import { PAL_CATALOG } from './catalog.js';
 import { RAID_PROFILES, TOWER_PROFILES } from './encounter-overrides.js';
 
@@ -10,7 +12,7 @@ const skillCd=s=>Math.max(.5,N(s?.data?.cooldown??s?.data?.cool_time??s?.data?.C
 const skillElement=s=>String(s?.data?.element??s?.data?.type??s?.type??'Neutral');
 const skillName=s=>s?.name||s?.id||'Unbekannter Skill';
 
-export const ENGINE_VERSION='2.0.0-foundation';
+export const ENGINE_VERSION='2.0.1-core-bound';
 export const DEFAULT_PLAYER={level:75,attack:100,weaponName:'Nicht erfasst',weaponDps:0,reloadFactor:1,element:'Neutral',foodMultiplier:1,accessoryMultiplier:1};
 export const DEFAULT_PAL_PROFILE={level:75,stars:0,ivs:{hp:0,attack:0,defense:0},souls:{hp:0,attack:0,defense:0,work:0},passives:[],activeSkillIds:[],implants:[],alpha:false,lucky:false};
 
@@ -129,7 +131,7 @@ export function simulateBattle({encounter,members=[],player=DEFAULT_PLAYER,tick=
 }
 
 export function optimizeRaidArmy({encounter,profiles={},player=DEFAULT_PLAYER,maxSlots=20,ownedOnly=false,ownedIds=[]}){
-  const source=PAL_CATALOG.filter(p=>!ownedOnly||ownedIds.includes(p.key));
+  const source=PAL_CATALOG.filter(p=>(p.skills||[]).length&&p?.stats?.attack>0&&(!ownedOnly||ownedIds.includes(p.key)));
   const ranked=source.map(p=>{const profile=profiles[p.key]||DEFAULT_PAL_PROFILE;const est=estimatePalDps(p,profile,encounter);const stats=combatStats(p,profile);return{pal:p,profile,dps:est.dps,survival:stats.hp+stats.defense*1.5,rotation:est.rotation};}).sort((a,b)=>(b.dps+b.survival*.02)-(a.dps+a.survival*.02));
   const army=[];
   for(let i=0;i<maxSlots&&ranked.length;i++)army.push(ranked[i%Math.min(ranked.length,8)]);
