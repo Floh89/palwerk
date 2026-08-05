@@ -26,11 +26,19 @@ jobs:
       - name: Download canonical Palworld datasets
         run: |
           mkdir -p data/upstream
-          base="https://raw.githubusercontent.com/Noval1th/PalworldDashboard/main/collector"
-          curl --fail --location --retry 3 "$base/pal-names.json" -o data/upstream/pal-names.json
-          curl --fail --location --retry 3 "$base/pal-types.json" -o data/upstream/pal-types.json
-          curl --fail --location --retry 3 "$base/pal-moves.json" -o data/upstream/pal-moves.json
-          curl --fail --location --retry 3 "$base/pal-passives.json" -o data/upstream/pal-passives.json
+          dashboard="https://raw.githubusercontent.com/Noval1th/PalworldDashboard/main/collector"
+          savepal="https://raw.githubusercontent.com/oMaN-Rod/palworld-save-pal/main/data/json"
+          curl -fL --retry 3 "$dashboard/pal-names.json" -o data/upstream/pal-names.json
+          curl -fL --retry 3 "$dashboard/pal-types.json" -o data/upstream/pal-types.json
+          curl -fL --retry 3 "$dashboard/pal-moves.json" -o data/upstream/pal-moves.json
+          curl -fL --retry 3 "$dashboard/pal-passives.json" -o data/upstream/pal-passives.json
+          curl -fL --retry 3 "$savepal/pals.json" -o data/upstream/pals-full.json
+          curl -fL --retry 3 "$savepal/active_skills.json" -o data/upstream/active-skills-full.json
+          curl -fL --retry 3 "$savepal/passive_skills.json" -o data/upstream/passive-skills-full.json
+          curl -fL --retry 3 "$savepal/bosses.json" -o data/upstream/bosses.json
+          curl -fL --retry 3 "$savepal/l10n/de/pals.json" -o data/upstream/pals-de.json
+          curl -fL --retry 3 "$savepal/l10n/de/active_skills.json" -o data/upstream/active-skills-de.json
+          curl -fL --retry 3 "$savepal/l10n/de/passive_skills.json" -o data/upstream/passive-skills-de.json
       - name: Generate offline catalog
         run: node scripts/build-core-data.mjs
       - name: Configure Pages
