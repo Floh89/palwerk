@@ -1,0 +1,14 @@
+{
+  "name": "PALWERK – Offline Palworld Optimizer",
+  "short_name": "PALWERK",
+  "description": "Privates Offline-Optimierungstool für Palworld",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#090b10",
+  "theme_color": "#090b10",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
