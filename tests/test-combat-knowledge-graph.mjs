@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { COMBAT_GRAPH, DATA_STATUSES, ELEMENT_COUNTER, createCombatKnowledgeGraph, encounterPhases, getPalKnowledge, graphQualitySummary, normalizeInternalId } from '../src/knowledge/combat-graph.js';
 
-assert.equal(COMBAT_GRAPH.schemaVersion,'1.3.0');
-assert.equal(COMBAT_GRAPH.createdFrom,'ENRICHED_PAL_CATALOG');
+assert.equal(COMBAT_GRAPH.schemaVersion,'1.4.0');
+assert.equal(COMBAT_GRAPH.createdFrom,'PAL_CATALOG_PLUS_PARTNER_DATA');
 assert.ok(COMBAT_GRAPH.pals.length>200,'Der Graph muss den vollständigen Pal-Katalog abbilden');
 assert.equal(COMBAT_GRAPH.registry.duplicateDexKeys.length,0,'Der produktive Graph darf keine doppelten dexKeys enthalten');
 assert.equal(normalizeInternalId('EPalWazaID::FireBlast'),'fireblast');
