@@ -1,4 +1,4 @@
-export const SOURCE_PRIORITY_VERSION='1.0.0';
+export const SOURCE_PRIORITY_VERSION='1.1.0';
 
 export const FIELD_SOURCE_PRIORITY=Object.freeze({
   stats:Object.freeze(['game_dump','wiki','legacy']),
@@ -16,12 +16,7 @@ export const FIELD_SOURCE_PRIORITY=Object.freeze({
   bossData:Object.freeze(['game_dump','wiki','legacy'])
 });
 
-const FIELD_ALIASES=Object.freeze({
-  name:'germanName',
-  element:'elements',
-  skills:'activeSkills',
-  partner:'partnerDescription'
-});
+const FIELD_ALIASES=Object.freeze({name:'germanName',element:'elements',skills:'activeSkills',partner:'partnerDescription'});
 
 function nonEmpty(value){
   if(value==null)return false;
@@ -73,9 +68,9 @@ export function chooseField(field,candidates=[]){
   return valid[0];
 }
 
-function mergeArrayById(high=[],low=[]){
+function mergeSupplementalArray(primary=[],fallback=[]){
   const result=[],seen=new Set();
-  for(const item of [...(Array.isArray(high)?high:[]),...(Array.isArray(low)?low:[])]){
+  for(const item of [...(Array.isArray(primary)?primary:[]),...(Array.isArray(fallback)?fallback:[])]){
     const key=String(item?.id??item?.key??JSON.stringify(item));
     if(seen.has(key))continue;
     seen.add(key);result.push(item);
@@ -83,68 +78,79 @@ function mergeArrayById(high=[],low=[]){
   return result;
 }
 
-function pick(field,high,low,key=field){
+function authoritativeArray(field,a,b,key){
   const selected=chooseField(field,[
-    {value:high?.[key],source:fieldSource(high,field)},
-    {value:low?.[key],source:fieldSource(low,field)}
+    {value:a?.[key],source:fieldSource(a,field),owner:a},
+    {value:b?.[key],source:fieldSource(b,field),owner:b}
   ]);
-  return selected.value;
+  return {value:Array.isArray(selected.value)?selected.value:[],source:selected.source,owner:selected.owner||null};
+}
+
+function pick(field,a,b,key=field){
+  return chooseField(field,[
+    {value:a?.[key],source:fieldSource(a,field),owner:a},
+    {value:b?.[key],source:fieldSource(b,field),owner:b}
+  ]);
 }
 
 export function mergePalRecordsByPriority(a={},b={}){
   const stats=pick('stats',a,b);
   const element=pick('elements',a,b,'element');
-  const skillsSource=sourceRank('activeSkills',fieldSource(a,'activeSkills'))<=sourceRank('activeSkills',fieldSource(b,'activeSkills'))?[a,b]:[b,a];
-  const passiveSource=sourceRank('fixedPassives',fieldSource(a,'fixedPassives'))<=sourceRank('fixedPassives',fieldSource(b,'fixedPassives'))?[a,b]:[b,a];
+  const skills=authoritativeArray('activeSkills',a,b,'skills');
+  const fixedPassives=authoritativeArray('fixedPassives',a,b,'fixedPassives');
   const work=pick('work',a,b);
   const movement=pick('movement',a,b);
   const name=pick('germanName',a,b,'name');
   const description=pick('description',a,b);
   const paldeck=pick('paldeck',a,b);
   const partnerDescription=chooseField('partnerDescription',[
-    {value:a?.partner?.description,source:fieldSource(a,'partnerDescription')},
-    {value:b?.partner?.description,source:fieldSource(b,'partnerDescription')}
+    {value:a?.partner?.description,source:fieldSource(a,'partnerDescription'),owner:a},
+    {value:b?.partner?.description,source:fieldSource(b,'partnerDescription'),owner:b}
   ]);
   const partnerName=chooseField('partnerDescription',[
-    {value:a?.partner?.name,source:fieldSource(a,'partnerDescription')},
-    {value:b?.partner?.name,source:fieldSource(b,'partnerDescription')}
+    {value:a?.partner?.name,source:fieldSource(a,'partnerDescription'),owner:a},
+    {value:b?.partner?.name,source:fieldSource(b,'partnerDescription'),owner:b}
   ]);
-  const partnerEffectsSource=sourceRank('partnerEffects',fieldSource(a,'partnerEffects'))<=sourceRank('partnerEffects',fieldSource(b,'partnerEffects'))?[a,b]:[b,a];
-  const partnerEffects=mergeArrayById(partnerEffectsSource[0]?.partner?.effects,partnerEffectsSource[1]?.partner?.effects);
+  const partnerEffects=chooseField('partnerEffects',[
+    {value:a?.partner?.effects,source:fieldSource(a,'partnerEffects'),owner:a},
+    {value:b?.partner?.effects,source:fieldSource(b,'partnerEffects'),owner:b}
+  ]);
   const merged={
     ...b,...a,
     internalId:a.internalId||b.internalId,
     key:a.key||b.key,
-    paldeck:paldeck??a.paldeck??b.paldeck??null,
-    name:name??a.name??b.name,
-    description:description??a.description??b.description??null,
-    element:element??a.element??b.element??'',
-    stats:stats??a.stats??b.stats??{},
-    work:work??a.work??b.work??{},
-    movement:movement??a.movement??b.movement??{},
-    skills:mergeArrayById(skillsSource[0]?.skills,skillsSource[1]?.skills),
-    fixedPassives:mergeArrayById(passiveSource[0]?.fixedPassives,passiveSource[1]?.fixedPassives),
-    drops:mergeArrayById(a.drops,b.drops),
-    spawn:mergeArrayById(a.spawn,b.spawn),
+    paldeck:paldeck.value??a.paldeck??b.paldeck??null,
+    name:name.value??a.name??b.name,
+    description:description.value??a.description??b.description??null,
+    element:element.value??a.element??b.element??'',
+    stats:stats.value??a.stats??b.stats??{},
+    work:work.value??a.work??b.work??{},
+    movement:movement.value??a.movement??b.movement??{},
+    skills:skills.value,
+    fixedPassives:fixedPassives.value,
+    drops:mergeSupplementalArray(a.drops,b.drops),
+    spawn:mergeSupplementalArray(a.spawn,b.spawn),
     partner:{
       ...(b.partner||{}),...(a.partner||{}),
       name:partnerName.value??a.partner?.name??b.partner?.name??null,
       description:partnerDescription.value??a.partner?.description??b.partner?.description??null,
-      effects:partnerEffects
+      effects:Array.isArray(partnerEffects.value)?partnerEffects.value:[]
     },
     aliases:[...new Set([...(a.aliases||[]),...(b.aliases||[]),a.name,b.name].filter(Boolean))],
     canonical:true,
     fieldSources:{
       ...(b.fieldSources||{}),...(a.fieldSources||{}),
-      stats:fieldSource(stats===a.stats?a:b,'stats'),
-      elements:fieldSource(element===a.element?a:b,'elements'),
-      activeSkills:fieldSource(skillsSource[0],'activeSkills'),
-      fixedPassives:fieldSource(passiveSource[0],'fixedPassives'),
-      work:fieldSource(work===a.work?a:b,'work'),
-      movement:fieldSource(movement===a.movement?a:b,'movement'),
-      germanName:fieldSource(name===a.name?a:b,'germanName'),
+      stats:stats.source,
+      elements:element.source,
+      activeSkills:skills.source,
+      fixedPassives:fixedPassives.source,
+      work:work.source,
+      movement:movement.source,
+      germanName:name.source,
+      description:description.source,
+      paldeck:paldeck.source,
       partnerDescription:partnerDescription.source,
-      partnerEffects:fieldSource(partnerEffectsSource[0],'partnerEffects')
+      partnerEffects:partnerEffects.source
     }
   };
   return merged;
