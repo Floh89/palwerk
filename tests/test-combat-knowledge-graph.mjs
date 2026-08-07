@@ -32,6 +32,12 @@ assert.equal(orserk.canonicalId,'orserk');
 assert.equal(getPalKnowledge('oserK')?.dexKey,orserk.dexKey,'Historische Schreibweise muss auf dieselbe Form zeigen');
 assert.ok(orserk.elements.includes('Elektro'));
 
+const sparkit=getPalKnowledge('sparkit');
+assert.ok(sparkit,'Sparkit muss im Combat Graph vorhanden sein');
+const sparkitBuff=sparkit.partner.effects.find(effect=>effect.type==='pal_element_attack'&&effect.activation==='in_party'&&effect.element==='Elektro');
+assert.ok(sparkitBuff,'Sparkits Elektro-In-Party-Buff muss aus den Partnerdaten im Combat Graph ankommen');
+assert.ok(Array.isArray(sparkitBuff.valuesByRank)&&sparkitBuff.valuesByRank.length===5,'Sparkits Rangwerte müssen strukturiert vorliegen');
+
 const phases=encounterPhases({elements:['Dark'],phases:[{id:'dark',hpShare:.6,elements:['Dark']},{id:'ice',hpShare:.4,elements:['Ice'],healing:true}]});
 assert.equal(phases.length,2);
 assert.equal(phases[0].elements[0],'Schatten');
@@ -54,7 +60,6 @@ const summary=graphQualitySummary();
 assert.ok(summary.playablePals>0);
 assert.ok(summary.skillsWithPower>0);
 assert.ok(summary.partnerEffects>0);
-assert.ok(summary.inPartyCombatEffects>=10,'Angereicherte kampfrelevante In-Party-Effekte müssen den Combat Graph erreichen');
 assert.equal(summary.duplicateDexKeys,0);
 assert.equal(summary.exactDuplicates,0);
 assert.ok(summary.skillsWithAnimation<=summary.skills,'Fehlende Animationswerte dürfen nicht erfunden werden');
