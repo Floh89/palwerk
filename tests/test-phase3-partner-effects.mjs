@@ -10,7 +10,7 @@ const test=(name,fn)=>{try{fn();tests.push({name,ok:true});console.log(`✓ ${na
 const effects=PAL_CATALOG.flatMap(pal=>(pal.partner?.effects||[]).map(effect=>({pal,effect})));
 const required=['activation','requiresEquipment','equipmentId','stackingGroup','stackable','target','element','valuesByRank','appliesTo','conditions','source','gameVersion','verifiedAt','confidence','status'];
 
-test('Optimizer API ist auf Phase 3 angehoben',()=>assert.equal(OPTIMIZER_API_VERSION,'3.0.0'));
+test('Optimizer API bleibt auf der konsolidierten 3.x-Schnittstelle',()=>assert.match(OPTIMIZER_API_VERSION,/^3\./));
 test('Partnerdaten enthalten strukturierte Effekte',()=>assert.ok(effects.length>0));
 test('Jeder Partnereffekt erfüllt den vollständigen Vertrag',()=>{
   for(const {pal,effect} of effects){
