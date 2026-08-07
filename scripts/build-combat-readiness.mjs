@@ -6,7 +6,7 @@ const { PAL_CATALOG }=await import('../src/catalog.js');
 const { createCanonicalPalRegistry }=await import('../src/data/canonical-pals.js');
 
 const enPals=read('pals-en.json',{});
-const SCHEMA='palwerk-combat-readiness-1.2.0';
+const SCHEMA='palwerk-combat-readiness-1.3.0';
 const GAME_VERSION='1.0';
 const generatedAt=new Date().toISOString();
 const norm=value=>String(value??'').trim().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
@@ -16,6 +16,7 @@ const nonEmpty=value=>value!=null&&(Array.isArray(value)?value.length>0:typeof v
 const verifiedStat=value=>Number.isFinite(Number(value))&&Number(value)>0;
 const partnerByName=new Map((PARTNER_DATA||[]).filter(row=>row?.palName).map(row=>[norm(row.palName),row]));
 const partnerByDex=new Map((PARTNER_DATA||[]).filter(row=>row?.paldeck).map(row=>[dexToken(row.paldeck),row]));
+const COMBAT_SUPPORT_TYPES=new Set(['pal_element_attack','pal_attack','party_pal_attack','cooldown_reduction','weakpoint_damage','party_follow_attack','damage_reduction','heal_player','revive_player','life_steal','player_attack','player_weapon_damage']);
 
 function englishName(pal){const row=localized(enPals,pal.internalId);return row?.localized_name||row?.name||null;}
 function generatedPartnerFor(pal,nameEN){return partnerByName.get(norm(nameEN))||partnerByName.get(norm(pal.name))||partnerByDex.get(dexToken(pal.paldeck))||null;}
@@ -30,69 +31,26 @@ function mountRequirements(effects){const mounts=effects.filter(effect=>effect.t
 function condensationEffects(pal,effects){return{statMultiplierByStars:[1,1.05,1.10,1.15,1.20],partnerSkillRankByStars:[1,2,3,4,5],partnerRankValues:usefulRankEffects(effects).map(effect=>({type:effect.type,element:effect.element||null,target:effect.target||null,valuesByRank:effect.valuesByRank,source:effect.source||pal.partner?.source||null,status:effect.status||'provisional',confidence:effect.confidence||'low'})),source:'palworld_wiki_condensation',gameVersion:GAME_VERSION,status:'verified_global_rule'};}
 function skillFruitEligibility(){return{mode:'all_pals_can_consume_available_skill_fruits',status:'verified_general_rule',source:'palworld_wiki_skill_fruits',note:'Fruit availability is a property of the skill; Pal species does not restrict consumption.'};}
 function fieldStatus(ok,source,status='verified'){return{ok:Boolean(ok),source:source||null,status:ok?status:'missing'};}
+function roleReadiness(pal,coreMissing,effects){const carryEligible=coreMissing.length===0;const supportEffects=effects.filter(effect=>effect.activation==='in_party'&&COMBAT_SUPPORT_TYPES.has(effect.type));const quantifiedSupportEffects=supportEffects.filter(effect=>Array.isArray(effect.valuesByRank)&&effect.valuesByRank.length===5&&effect.valuesByRank.every(value=>Number.isFinite(Number(value))));const supportEligible=quantifiedSupportEffects.length>0;const utilityEligible=Object.values(pal.work||{}).some(value=>Number(value)>0)||effects.some(effect=>['pal_drop_bonus','loot_bonus','farm_drop','manual_duplicate','carry_capacity','movement_speed','mining_efficiency','logging_efficiency'].includes(effect.type));return{carryEligible,supportEligible,utilityEligible,supportEffectCount:supportEffects.length,quantifiedSupportEffectCount:quantifiedSupportEffects.length};}
 
 const registry=createCanonicalPalRegistry(PAL_CATALOG);
 const rows=registry.rows.map(row=>{
   const pal=row.source,nameEN=englishName(pal),generatedPartner=generatedPartnerFor(pal,nameEN);
   const skills=activeSkills(pal),exclusive=exclusiveSkills(pal),passives=naturalPassives(pal),effects=partnerEffects(pal,generatedPartner),rankEffects=usefulRankEffects(effects),ambiguous=ambiguousEffects(effects),mount=mountRequirements(effects),condensation=condensationEffects(pal,effects),elements=String(pal.element||'').split('/').filter(Boolean);
   const partnerSkill={id:norm(generatedPartner?.skillName||pal.partner?.name||row.canonicalId),name:generatedPartner?.skillName||pal.partner?.name||null,description:generatedPartner?.description||pal.partner?.description||null,source:generatedPartner?.source||pal.partner?.source||null,gameVersion:generatedPartner?.gameVersion||pal.partner?.gameVersion||null};
-  const required={
-    canonicalId:fieldStatus(nonEmpty(row.canonicalId),'canonical_registry'),
-    paldeck:fieldStatus(nonEmpty(pal.paldeck),'game_dump'),
-    nameDE:fieldStatus(nonEmpty(pal.name),pal.fieldSources?.germanName||'official_localization'),
-    nameEN:fieldStatus(nonEmpty(nameEN),'official_localization_en'),
-    elements:fieldStatus(elements.length>0,'game_dump'),
-    hpScaling:fieldStatus(verifiedStat(pal.stats?.hp),'game_dump'),
-    attackScaling:fieldStatus(verifiedStat(pal.stats?.attack),'game_dump'),
-    defenseScaling:fieldStatus(verifiedStat(pal.stats?.defense),'game_dump'),
-    naturalPassives:fieldStatus(Array.isArray(pal.rawRecord?.passive_skills),'game_dump'),
-    activeSkills:fieldStatus(skills.length>0,'game_dump'),
-    exclusiveSkills:fieldStatus(Array.isArray(pal.rawRecord?.skill_set),'game_dump'),
-    skillFruitEligibility:fieldStatus(true,'palworld_wiki_skill_fruits'),
-    partnerSkill:fieldStatus(nonEmpty(partnerSkill.name)&&nonEmpty(partnerSkill.description),partnerSkill.source),
-    partnerEffects:fieldStatus(effects.length>0,generatedPartner?.source||pal.partner?.source),
-    partnerRankValues:fieldStatus(rankEffects.length>0,generatedPartner?.source||pal.partner?.source),
-    condensationEffects:fieldStatus(true,'palworld_wiki_condensation'),
-    mountRequirements:fieldStatus(mount.status!=='provisional',mount.source,mount.status)
-  };
+  const required={canonicalId:fieldStatus(nonEmpty(row.canonicalId),'canonical_registry'),paldeck:fieldStatus(nonEmpty(pal.paldeck),'game_dump'),nameDE:fieldStatus(nonEmpty(pal.name),pal.fieldSources?.germanName||'official_localization'),nameEN:fieldStatus(nonEmpty(nameEN),'official_localization_en'),elements:fieldStatus(elements.length>0,'game_dump'),hpScaling:fieldStatus(verifiedStat(pal.stats?.hp),'game_dump'),attackScaling:fieldStatus(verifiedStat(pal.stats?.attack),'game_dump'),defenseScaling:fieldStatus(verifiedStat(pal.stats?.defense),'game_dump'),naturalPassives:fieldStatus(Array.isArray(pal.rawRecord?.passive_skills),'game_dump'),activeSkills:fieldStatus(skills.length>0,'game_dump'),exclusiveSkills:fieldStatus(Array.isArray(pal.rawRecord?.skill_set),'game_dump'),skillFruitEligibility:fieldStatus(true,'palworld_wiki_skill_fruits'),partnerSkill:fieldStatus(nonEmpty(partnerSkill.name)&&nonEmpty(partnerSkill.description),partnerSkill.source),partnerEffects:fieldStatus(effects.length>0,generatedPartner?.source||pal.partner?.source),partnerRankValues:fieldStatus(rankEffects.length>0,generatedPartner?.source||pal.partner?.source),condensationEffects:fieldStatus(true,'palworld_wiki_condensation'),mountRequirements:fieldStatus(mount.status!=='provisional',mount.source,mount.status)};
   const missingFields=Object.entries(required).filter(([,state])=>!state.ok).map(([field])=>field);
   const coreMissing=missingFields.filter(field=>['canonicalId','paldeck','nameDE','nameEN','elements','hpScaling','attackScaling','defenseScaling','activeSkills'].includes(field));
   const partnerMissing=missingFields.filter(field=>['partnerSkill','partnerEffects','partnerRankValues','mountRequirements'].includes(field));
-  const optimizerEligible=coreMissing.length===0;
-  const completeCombatData=missingFields.length===0;
-  const dataConfidence=coreMissing.length?'low':partnerMissing.length||ambiguous.length?'medium':'high';
-  return{
-    canonicalId:row.canonicalId,paldeck:pal.paldeck||null,nameDE:pal.name||null,nameEN,elements,
-    hpScaling:Number(pal.stats?.hp||0),attackScaling:Number(pal.stats?.attack||0),defenseScaling:Number(pal.stats?.defense||0),
-    naturalPassives:passives,activeSkills:skills,exclusiveSkills:exclusive,skillFruitEligibility:skillFruitEligibility(),partnerSkill,partnerEffects:effects,partnerRankValues:rankEffects.map(effect=>({type:effect.type,element:effect.element||null,target:effect.target||null,valuesByRank:effect.valuesByRank})),condensationEffects:condensation,mountRequirements:mount,
-    required,missingFields,coreMissing,partnerMissing,criticalMissing:coreMissing,ambiguousPartnerEffects:ambiguous.map(effect=>({type:effect.type,activation:effect.activation,status:effect.status,confidence:effect.confidence,stackable:effect.stackable})),optimizerEligible,completeCombatData,dataConfidence,sourceIds:row.sourceIds,gameVersion:GAME_VERSION
-  };
+  const roles=roleReadiness(pal,coreMissing,effects),completeCombatData=missingFields.length===0,dataConfidence=coreMissing.length?'low':partnerMissing.length||ambiguous.length?'medium':'high';
+  return{canonicalId:row.canonicalId,paldeck:pal.paldeck||null,nameDE:pal.name||null,nameEN,elements,hpScaling:Number(pal.stats?.hp||0),attackScaling:Number(pal.stats?.attack||0),defenseScaling:Number(pal.stats?.defense||0),naturalPassives:passives,activeSkills:skills,exclusiveSkills:exclusive,skillFruitEligibility:skillFruitEligibility(),partnerSkill,partnerEffects:effects,partnerRankValues:rankEffects.map(effect=>({type:effect.type,element:effect.element||null,target:effect.target||null,valuesByRank:effect.valuesByRank})),condensationEffects:condensation,mountRequirements:mount,required,missingFields,coreMissing,partnerMissing,criticalMissing:coreMissing,ambiguousPartnerEffects:ambiguous.map(effect=>({type:effect.type,activation:effect.activation,status:effect.status,confidence:effect.confidence,stackable:effect.stackable})),...roles,optimizerEligible:roles.carryEligible||roles.supportEligible||roles.utilityEligible,completeCombatData,dataConfidence,sourceIds:row.sourceIds,gameVersion:GAME_VERSION};
 });
 
 const listMissing=field=>rows.filter(row=>row.missingFields.includes(field)).map(row=>row.canonicalId);
-const report={
-  schemaVersion:SCHEMA,generatedAt,gameVersion:GAME_VERSION,
-  playablePalsTotal:rows.length,
-  completeCombatData:rows.filter(row=>row.completeCombatData).length,
-  optimizerEligible:rows.filter(row=>row.optimizerEligible).length,
-  highConfidence:rows.filter(row=>row.dataConfidence==='high').length,
-  mediumConfidence:rows.filter(row=>row.dataConfidence==='medium').length,
-  lowConfidence:rows.filter(row=>row.dataConfidence==='low').length,
-  missingStats:rows.filter(row=>row.missingFields.some(field=>['hpScaling','attackScaling','defenseScaling'].includes(field))).length,
-  missingSkills:listMissing('activeSkills').length,
-  missingPartnerEffects:listMissing('partnerEffects').length,
-  missingPartnerRankValues:listMissing('partnerRankValues').length,
-  ambiguousPartnerEffects:rows.filter(row=>row.ambiguousPartnerEffects.length>0).length,
-  missingMountRequirements:listMissing('mountRequirements').length,
-  missingEnglishNames:listMissing('nameEN').length,
-  details:{
-    missingStats:rows.filter(row=>row.missingFields.some(field=>['hpScaling','attackScaling','defenseScaling'].includes(field))).map(row=>row.canonicalId),
-    missingSkills:listMissing('activeSkills'),missingPartnerEffects:listMissing('partnerEffects'),missingPartnerRankValues:listMissing('partnerRankValues'),ambiguousPartnerEffects:rows.filter(row=>row.ambiguousPartnerEffects.length>0).map(row=>row.canonicalId),missingMountRequirements:listMissing('mountRequirements'),missingEnglishNames:listMissing('nameEN'),optimizerExcluded:rows.filter(row=>!row.optimizerEligible).map(row=>({canonicalId:row.canonicalId,coreMissing:row.coreMissing})),partnerIncomplete:rows.filter(row=>row.partnerMissing.length).map(row=>({canonicalId:row.canonicalId,partnerMissing:row.partnerMissing}))
-  }
-};
+const report={schemaVersion:SCHEMA,generatedAt,gameVersion:GAME_VERSION,playablePalsTotal:rows.length,completeCombatData:rows.filter(row=>row.completeCombatData).length,optimizerEligible:rows.filter(row=>row.optimizerEligible).length,carryEligible:rows.filter(row=>row.carryEligible).length,supportEligible:rows.filter(row=>row.supportEligible).length,utilityEligible:rows.filter(row=>row.utilityEligible).length,highConfidence:rows.filter(row=>row.dataConfidence==='high').length,mediumConfidence:rows.filter(row=>row.dataConfidence==='medium').length,lowConfidence:rows.filter(row=>row.dataConfidence==='low').length,missingStats:rows.filter(row=>row.missingFields.some(field=>['hpScaling','attackScaling','defenseScaling'].includes(field))).length,missingSkills:listMissing('activeSkills').length,missingPartnerEffects:listMissing('partnerEffects').length,missingPartnerRankValues:listMissing('partnerRankValues').length,ambiguousPartnerEffects:rows.filter(row=>row.ambiguousPartnerEffects.length>0).length,missingMountRequirements:listMissing('mountRequirements').length,missingEnglishNames:listMissing('nameEN').length,details:{missingStats:rows.filter(row=>row.missingFields.some(field=>['hpScaling','attackScaling','defenseScaling'].includes(field))).map(row=>row.canonicalId),missingSkills:listMissing('activeSkills'),missingPartnerEffects:listMissing('partnerEffects'),missingPartnerRankValues:listMissing('partnerRankValues'),ambiguousPartnerEffects:rows.filter(row=>row.ambiguousPartnerEffects.length>0).map(row=>row.canonicalId),missingMountRequirements:listMissing('mountRequirements'),missingEnglishNames:listMissing('nameEN'),carryExcluded:rows.filter(row=>!row.carryEligible).map(row=>({canonicalId:row.canonicalId,coreMissing:row.coreMissing})),supportIncomplete:rows.filter(row=>!row.supportEligible).map(row=>({canonicalId:row.canonicalId,partnerMissing:row.partnerMissing,supportEffectCount:row.supportEffectCount})),partnerIncomplete:rows.filter(row=>row.partnerMissing.length).map(row=>({canonicalId:row.canonicalId,partnerMissing:row.partnerMissing}))}};
 
-const runtime=`export const PAL_COMBAT_READINESS_SCHEMA=${JSON.stringify(SCHEMA)};\nexport const PAL_COMBAT_READINESS=${JSON.stringify(rows)};\nexport const PAL_COMBAT_READINESS_REPORT=${JSON.stringify(report)};\nconst norm=v=>String(v??'').trim().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');\nconst byCanonical=new Map(PAL_COMBAT_READINESS.map(row=>[norm(row.canonicalId),row]));\nconst bySource=new Map();for(const row of PAL_COMBAT_READINESS)for(const id of row.sourceIds||[])bySource.set(norm(id),row);\nexport function readinessForPal(pal){if(!pal)return null;for(const key of [pal.canonicalId,pal.id,pal.internalId,pal.key,pal.name]){const n=norm(key);if(!n)continue;const hit=byCanonical.get(n)||bySource.get(n);if(hit)return hit;}return null;}\nexport function isOptimizerEligiblePal(pal){return readinessForPal(pal)?.optimizerEligible===true;}\n`;
+const runtime=`export const PAL_COMBAT_READINESS_SCHEMA=${JSON.stringify(SCHEMA)};\nexport const PAL_COMBAT_READINESS=${JSON.stringify(rows)};\nexport const PAL_COMBAT_READINESS_REPORT=${JSON.stringify(report)};\nconst norm=v=>String(v??'').trim().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');\nconst byCanonical=new Map(PAL_COMBAT_READINESS.map(row=>[norm(row.canonicalId),row]));\nconst bySource=new Map();for(const row of PAL_COMBAT_READINESS)for(const id of row.sourceIds||[])bySource.set(norm(id),row);\nexport function readinessForPal(pal){if(!pal)return null;for(const key of [pal.canonicalId,pal.id,pal.internalId,pal.key,pal.name]){const n=norm(key);if(!n)continue;const hit=byCanonical.get(n)||bySource.get(n);if(hit)return hit;}return null;}\nexport function isCarryEligiblePal(pal){return readinessForPal(pal)?.carryEligible===true;}\nexport function isSupportEligiblePal(pal){return readinessForPal(pal)?.supportEligible===true;}\nexport function isUtilityEligiblePal(pal){return readinessForPal(pal)?.utilityEligible===true;}\nexport function isOptimizerEligiblePal(pal){return readinessForPal(pal)?.optimizerEligible===true;}\n`;
 fs.writeFileSync('src/generated-combat-readiness.js',runtime);
 fs.writeFileSync('combat-data-report.json',JSON.stringify(report,null,2));
-console.log(JSON.stringify({...report,details:{missingSkills:report.details.missingSkills,missingPartnerEffects:report.details.missingPartnerEffects,missingMountRequirements:report.details.missingMountRequirements,optimizerExcluded:report.details.optimizerExcluded}},null,2));
+console.log(JSON.stringify({...report,details:{missingSkills:report.details.missingSkills,missingPartnerEffects:report.details.missingPartnerEffects,missingMountRequirements:report.details.missingMountRequirements,carryExcluded:report.details.carryExcluded.slice(0,20)}},null,2));
 if(report.missingStats>0||report.missingEnglishNames>0)process.exitCode=1;
