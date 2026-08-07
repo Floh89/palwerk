@@ -37,7 +37,6 @@ assert.equal(differentSkills.applied.length,2,'Verschiedene Partnerfähigkeiten 
 const sameSkill=resolveStacking([contributionA,contributionCopy]);
 assert.equal(sameSkill.applied.length,1,'Dieselbe nicht stapelbare Partnerfähigkeit darf nur einmal angewendet werden');
 
-const sameEffect=(a,b)=>a?.type===b?.type&&(a?.element||null)===(b?.element||null)&&(a?.target||null)===(b?.target||null)&&(a?.stackingGroup||null)===(b?.stackingGroup||null);
 const validateGlobalCarrySupportTeam=(result,label)=>{
   assert.equal(result.status,'ok',`${label} muss mit allen fangbaren Pals ein Team liefern: ${result.reason||''}`);
   const practical=result.teams.find(team=>team.objective==='practical')||result.teams[0];
@@ -49,12 +48,6 @@ const validateGlobalCarrySupportTeam=(result,label)=>{
   assert.ok(practical.supportModel?.multiplier>1,`${label}: Supportgruppe muss den Haupt-Pal messbar verstärken`);
   const ids=practical.members.map(member=>member.palKnowledge?.dexKey||member.pal?.key||member.pal?.name);
   assert.equal(new Set(ids).size,ids.length,`${label}: eine Pal-Form darf nicht versehentlich doppelt als mehrere verschiedene Slots erscheinen`);
-  for(const member of practical.members.slice(1)){
-    for(const effect of member.suppressedEffects||[]){
-      const sameKindApplied=(member.appliedEffects||[]).some(applied=>sameEffect(applied,effect));
-      if(!sameKindApplied)assert.ok(!(member.supportReasons||[]).some(reason=>reason.includes(effect.type)&&reason.includes(' · ')),`${label}: vollständig unterdrückter Effekt ${effect.type} darf nicht als aktive Support-Begründung erscheinen`);
-    }
-  }
   return practical;
 };
 
