@@ -40,7 +40,38 @@ jobs:
           curl -fL --retry 3 "$savepal/l10n/de/active_skills.json" -o data/upstream/active-skills-de.json
           curl -fL --retry 3 "$savepal/l10n/de/passive_skills.json" -o data/upstream/passive-skills-de.json
           curl -fL --retry 3 "https://palworld.wiki.gg/wiki/Module:PartnerSkills/data.json?action=raw" -o data/upstream/partner-skills.json || echo '{}' > data/upstream/partner-skills.json
-          curl -fL --retry 3 "https://palworld.wiki.gg/api.php?action=cargoquery&format=json&limit=5000&tables=PalPartnerSkillScale&fields=partnerSkill,effectType,target,level,effectValue" -o data/upstream/partner-scales.json || echo '{}' > data/upstream/partner-scales.json
+
+          # Cargo caps each response at 500 rows even when a larger limit is requested.
+          # Fetch all pages so late-alphabet partner skills (for example Sparkit) retain rank data.
+          rm -f /tmp/partner-scales-*.json
+          offset=0
+          while [ "$offset" -lt 5000 ]; do
+            page="/tmp/partner-scales-${offset}.json"
+            url="https://palworld.wiki.gg/api.php?action=cargoquery&format=json&limit=500&offset=${offset}&tables=PalPartnerSkillScale&fields=partnerSkill,effectType,target,level,effectValue"
+            if ! curl -fL --retry 3 "$url" -o "$page"; then
+              break
+            fi
+            count=$(python3 -c "import json; print(len(json.load(open('$page')).get('cargoquery', [])))")
+            if [ "$count" -eq 0 ]; then
+              break
+            fi
+            offset=$((offset + 500))
+            if [ "$count" -lt 500 ]; then
+              break
+            fi
+          done
+          python3 - <<'PY'
+          import glob, json
+          pages=[]
+          for path in sorted(glob.glob('/tmp/partner-scales-*.json'), key=lambda p:int(p.rsplit('-',1)[1].split('.')[0])):
+              try:
+                  pages.extend(json.load(open(path, encoding='utf-8')).get('cargoquery', []))
+              except Exception:
+                  pass
+          with open('data/upstream/partner-scales.json','w',encoding='utf-8') as f:
+              json.dump({'cargoquery':pages},f,separators=(',',':'))
+          print(f'Fetched {len(pages)} partner scale rows')
+          PY
           node -e "for(const f of ['partner-skills.json','partner-scales.json']){try{JSON.parse(require('fs').readFileSync('data/upstream/'+f,'utf8'))}catch{require('fs').writeFileSync('data/upstream/'+f,'{}')}}"
       - name: Generate offline catalog
         run: |
