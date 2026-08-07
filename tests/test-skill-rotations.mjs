@@ -62,6 +62,13 @@ assert.equal(simulation.status,'ok');
 assert.ok(simulation.events.length>3,'Die Rotation muss ereignisbasiert mehrere Einsätze erzeugen');
 assert.ok(simulation.modelDpsRange.low<simulation.modelDpsRange.high);
 
+const fasterSimulation=simulateRotation([fire,fast,multi],{pal,encounter:grassBoss,duration:30,cooldownMultiplier:.7});
+assert.equal(fasterSimulation.status,'ok');
+assert.equal(fasterSimulation.cooldownMultiplier,.7);
+assert.ok(fasterSimulation.events.length>=simulation.events.length,'Cooldown-Support darf die Zahl möglicher Skill-Einsätze nicht verringern');
+assert.ok(fasterSimulation.modelDamage>=simulation.modelDamage,'Cooldown-Support darf im gleichen Zeitfenster den Modellschaden nicht verringern');
+assert.ok(fasterSimulation.assumptions.some(text=>text.includes('Partner-Support')),'Cooldown-Simulation muss ihre Supportannahme ausweisen');
+
 const terminalSimulation=simulateRotation([fire,fast,selfDestruct],{pal,encounter:grassBoss,duration:60});
 const terminalIndex=terminalSimulation.events.findIndex(event=>event.skillId==='selfdestruct');
 assert.ok(terminalIndex>=0,'Selbstzerstörung muss in der Testrotation tatsächlich eingesetzt werden');
@@ -70,8 +77,13 @@ assert.equal(terminalIndex,terminalSimulation.events.length-1,'Nach Selbstzerst�
 assert.equal(terminalSimulation.events.filter(event=>event.skillId==='selfdestruct').length,1,'Selbstzerstörung darf nur einmal eingesetzt werden');
 
 const optimized=optimizeSkillRotation({pal,encounter:grassBoss,availableSkillIds:[fire,water,fast,multi],duration:30});
+const optimizedWithCooldown=optimizeSkillRotation({pal,encounter:grassBoss,availableSkillIds:[fire,water,fast,multi],duration:30,cooldownMultiplier:.7});
 assert.equal(optimized.status,'ok');
+assert.equal(optimizedWithCooldown.status,'ok');
 assert.equal(optimized.winner.skillIds.length,3);
+assert.equal(optimizedWithCooldown.winner.skillIds.length,3);
+assert.equal(optimizedWithCooldown.winner.simulation.cooldownMultiplier,.7,'Optimizer muss den Cooldown-Faktor bis in die Siegerrotation tragen');
+assert.notEqual(optimizedWithCooldown.winner.simulation,optimized.winner.simulation,'Basis- und Cooldown-Rotation dürfen nicht denselben Cacheeintrag verwenden');
 assert.ok(optimized.whyWinner&&optimized.assumptions.some(value=>value.toLowerCase().includes('keine sekundengenaue')));
 assert.equal(optimizeSkillRotation({pal,encounter:grassBoss,availableSkillIds:[fire,fast]}).status,'insufficient-data');
 
