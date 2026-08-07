@@ -17,9 +17,14 @@ const encounter={id:'objective-test-boss',name:'Objective Test Boss',elements:['
 const playable=COMBAT_GRAPH.pals.filter(pal=>pal.playable);
 const withThreeSkills=playable.filter(pal=>pal.skills.length>=3);
 const withThreeResolved=withThreeSkills.filter(pal=>pal.skills.filter(skill=>resolveSkill(skill.id)).length>=3);
-const withRotation=withThreeResolved.filter(pal=>optimizeSkillRotation({pal,encounter,availableSkillIds:pal.skills.map(skill=>skill.id),duration:60,limit:3}).status==='ok');
-console.log('Optimizer diagnostics',JSON.stringify({playable:playable.length,withThreeSkills:withThreeSkills.length,withThreeResolved:withThreeResolved.length,withRotation:withRotation.length,sample:withThreeSkills.slice(0,3).map(pal=>({id:pal.id,skills:pal.skills.map(skill=>skill.id),resolved:pal.skills.map(skill=>Boolean(resolveSkill(skill.id)))}))}));
+const rotationRows=withThreeResolved.map(pal=>({pal,rotation:optimizeSkillRotation({pal,encounter,availableSkillIds:pal.skills.map(skill=>skill.id),duration:60,limit:3})}));
+const withRotation=rotationRows.filter(row=>row.rotation.status==='ok');
+const positiveRotationDps=withRotation.filter(row=>Number.isFinite(row.rotation.winner?.simulation?.modelDps)&&row.rotation.winner.simulation.modelDps>0);
+const positiveAttack=playable.filter(pal=>Number.isFinite(Number(pal.stats?.attack))&&Number(pal.stats.attack)>0);
+console.log('Optimizer diagnostics',JSON.stringify({playable:playable.length,withThreeSkills:withThreeSkills.length,withThreeResolved:withThreeResolved.length,withRotation:withRotation.length,positiveRotationDps:positiveRotationDps.length,positiveAttack:positiveAttack.length,sample:positiveRotationDps.slice(0,3).map(row=>({id:row.pal.id,attack:row.pal.stats.attack,modelDps:row.rotation.winner.simulation.modelDps,skills:row.rotation.winner.skillIds}))}));
 assert.ok(withRotation.length>=5,'Mindestens fünf Pals müssen eine vollständige Dreierrotation besitzen');
+assert.ok(positiveRotationDps.length>=5,'Mindestens fünf Rotationen müssen einen positiven Modellwert besitzen');
+assert.ok(positiveAttack.length>=5,'Mindestens fünf Pals müssen einen positiven Angriffswert besitzen');
 
 const result=optimizeTeam({activity:'tower',encounter,constraints:{ownedOnly:false}});
 assert.equal(result.status,'ok',`Optimizer muss ein Team liefern: ${result.reason||'kein Grund'}`);
