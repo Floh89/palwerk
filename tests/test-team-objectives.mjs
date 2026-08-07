@@ -4,8 +4,10 @@ import '../src/catalog-pack-6.js';
 import '../src/catalog-pack-7.js';
 import '../src/generated-core.js';
 import '../src/generated-partner-data.js';
+import { COMBAT_GRAPH } from '../src/knowledge/combat-graph.js';
 import { optimizeTeam, TEAM_OBJECTIVES } from '../src/optimizer/engine.js';
 
+assert.ok(COMBAT_GRAPH.pals.length>200,'Combat Graph muss vor der Optimierung aufgebaut sein');
 assert.deepEqual(Object.keys(TEAM_OBJECTIVES),['practical','element','safest','speedrun']);
 assert.equal(new Set(Object.values(TEAM_OBJECTIVES).map(x=>x.passiveGoal)).size>=2,true,'Zielfunktionen müssen verschiedene Passive-Ziele verwenden');
 
