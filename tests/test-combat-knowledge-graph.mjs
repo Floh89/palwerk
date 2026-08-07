@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { PARTNER_DATA } from '../src/generated-partner-data.js';
 import { COMBAT_GRAPH, DATA_STATUSES, ELEMENT_COUNTER, createCombatKnowledgeGraph, encounterPhases, getPalKnowledge, graphQualitySummary, normalizeInternalId } from '../src/knowledge/combat-graph.js';
 
-assert.equal(COMBAT_GRAPH.schemaVersion,'1.6.0');
-assert.equal(COMBAT_GRAPH.createdFrom,'PAL_CATALOG_PLUS_PARTNER_DATA_PLUS_COMBAT_READINESS');
+assert.equal(COMBAT_GRAPH.schemaVersion,'1.6.1');
+assert.equal(COMBAT_GRAPH.createdFrom,'PAL_CATALOG_PLUS_PARTNER_DATA_PLUS_ROLE_READINESS');
 assert.ok(COMBAT_GRAPH.pals.length>200,'Der Graph muss den vollständigen kanonischen Pal-Katalog abbilden');
 assert.equal(COMBAT_GRAPH.registry.duplicateDexKeys.length,0,'Der produktive Graph darf keine doppelten dexKeys enthalten');
 assert.equal(normalizeInternalId('EPalWazaID::FireBlast'),'fireblast');
@@ -14,7 +14,9 @@ for(const pal of COMBAT_GRAPH.pals){
   assert.ok(Array.isArray(pal.sourceIds)&&pal.sourceIds.length>0);
   assert.ok(Array.isArray(pal.roles));
   assert.ok(pal.dataReadiness,'Jeder kanonische Pal im produktiven Graph muss einen Phase-4-Readiness-Datensatz tragen');
-  assert.equal(pal.playable,pal.dataReadiness.optimizerEligible,'Produktive Kampf-Eligibility muss aus dem Phase-4-Core-Gate stammen');
+  assert.equal(typeof pal.carryEligible,'boolean');
+  assert.equal(typeof pal.supportEligible,'boolean');
+  assert.equal(typeof pal.utilityEligible,'boolean');
   for(const skill of pal.skills){
     assert.ok(skill.id&&skill.name);
     for(const key of ['rawPower','cooldown','animation','hitRate','multiHit','aoe','range']){
@@ -47,6 +49,7 @@ assert.equal(sparkit.variantId,'base','Sparkits interner Codename darf nicht als
 const sparkitBuff=sparkit.partner.effects.find(effect=>effect.type==='pal_element_attack'&&effect.activation==='in_party'&&effect.element==='Elektro');
 assert.ok(sparkitBuff,`Sparkits Elektro-In-Party-Buff muss trotz 1.0-Umnummerierung über den Pal-Namen im Combat Graph ankommen. Graph: ${JSON.stringify({dexNumber:sparkit.dexNumber,variantId:sparkit.variantId,displayNumber:sparkit.displayNumber,effects:sparkit.partner.effects})}`);
 assert.ok(Array.isArray(sparkitBuff.valuesByRank)&&sparkitBuff.valuesByRank.length===5,`Sparkits Rangwerte müssen strukturiert vorliegen. Quelle: ${JSON.stringify({sourceEffect:sourceSparkitBuff,scales:sourceSparkit.scales,graphEffect:sparkitBuff})}`);
+assert.equal(sparkit.supportEligible,true,'Sparkit muss als quantifizierter In-Party-Support erkannt werden');
 
 const phases=encounterPhases({elements:['Dark'],phases:[{id:'dark',hpShare:.6,elements:['Dark']},{id:'ice',hpShare:.4,elements:['Ice'],healing:true}]});
 assert.equal(phases.length,2);
@@ -72,8 +75,12 @@ assert.ok(summary.skillsWithPower>0);
 assert.ok(summary.partnerEffects>0);
 assert.equal(summary.duplicateDexKeys,0);
 assert.equal(summary.exactDuplicates,0);
-assert.equal(summary.optimizerEligiblePals,summary.playablePals,'Graph-Eligibility und Phase-4-Readiness müssen konsistent sein');
-assert.equal(summary.optimizerEligiblePals+summary.excludedByDataGate,summary.totalPals,'Readiness-Gate muss jeden kanonischen Pal klassifizieren');
+assert.ok(summary.carryEligiblePals>0,'Readiness muss Carry-Kandidaten ausweisen');
+assert.ok(summary.supportEligiblePals>0,'Readiness muss Support-Kandidaten ausweisen');
+assert.ok(summary.utilityEligiblePals>0,'Readiness muss Utility-Kandidaten ausweisen');
+assert.ok(summary.carryEligiblePals<=summary.playablePals);
+assert.ok(summary.supportEligiblePals<=summary.playablePals);
+assert.ok(summary.utilityEligiblePals<=summary.playablePals);
 assert.ok(summary.skillsWithAnimation<=summary.skills,'Fehlende Animationswerte dürfen nicht erfunden werden');
 assert.ok(summary.effectsWithRankValues<=summary.partnerEffects,'Rangwerte dürfen nur gezählt werden, wenn sie wirklich vorhanden sind');
 assert.ok(summary.structuredFixedPassives<=summary.fixedPassives);
