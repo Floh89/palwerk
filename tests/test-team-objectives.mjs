@@ -24,18 +24,32 @@ const complementarySwitch={rotation:[{element:'Feuer'}],palKnowledge:{elements:[
 assert.equal(switchUtility(activeSynthetic,redundantSwitch,encounter,'practical'),0,'Ein Reserve-Pal ohne zusätzliche Phasenabdeckung darf keinen erfundenen Nutzen erhalten');
 assert.ok(switchUtility(activeSynthetic,complementarySwitch,encounter,'practical')>0,'Ein echter Phasen-Counter darf Wechselnutzen erhalten');
 
+const validateGlobalCarrySupportTeam=(result,label)=>{
+  assert.equal(result.status,'ok',`${label} muss mit allen fangbaren Pals ein Team liefern: ${result.reason||''}`);
+  const practical=result.teams[0];
+  assert.equal(practical.objective,'practical','Standardteam muss das praktische Carry-Support-Team sein');
+  assert.equal(practical.members.length,5);
+  assert.ok(practical.members.every(member=>member.profile?.stars===4),`${label}: globale Optimierung muss alle fünf Pals mit 4★-Referenzprofil bewerten`);
+  assert.ok(practical.effectiveSupportSlots>=2,`${label}: das praktische Team braucht mehrere tatsächlich angewendete Supportslots`);
+  assert.ok(practical.supportModel?.multiplier>1,`${label}: Supportgruppe muss den Haupt-Pal messbar verstärken`);
+  const appliedKeys=new Set(practical.stacking.applied.map(item=>`${item.palId}:${item.type}:${item.group}`));
+  for(const member of practical.members.slice(1)){
+    for(const effect of member.suppressedEffects||[]){
+      const key=`${member.palKnowledge.id}:${effect.type}:${effect.stackingGroup||`${effect.type}:${effect.element||effect.target||'general'}`}`;
+      if(!appliedKeys.has(key))assert.ok(!(member.supportReasons||[]).some(reason=>reason.includes(effect.type)&&reason.includes(' · ')),`${label}: unterdrückter Effekt ${effect.type} darf nicht als aktive Support-Begründung erscheinen`);
+    }
+  }
+};
+
 const zoe=TOWER_PROFILES.find(x=>x.id==='zoe-grizzbolt-normal');
 const zoeResult=optimizeTeam({activity:'tower',encounter:zoe,constraints:{ownedOnly:false}});
-assert.equal(zoeResult.status,'ok',`Zoe & Grizzbolt muss mit allen fangbaren Pals ein Team liefern: ${zoeResult.reason||''}`);
-assert.equal(zoeResult.teams[0].objective,'practical','Standardteam muss das praktische Carry-Support-Team sein');
+validateGlobalCarrySupportTeam(zoeResult,'Zoe & Grizzbolt');
 assert.ok(zoeResult.teams.every(team=>team.members.length===5),'Jede Zoe-Teamvariante muss fünf reale Partyplätze enthalten');
 assert.ok(zoeResult.teams[0].members.slice(1).some(member=>member.supportReasons?.length),'Das praktische Team braucht nachvollziehbare Support-Begründungen');
 
 const lilyHard=TOWER_PROFILES.find(x=>x.id==='lily-lyleen-hard');
 const lilyResult=optimizeTeam({activity:'tower',encounter:lilyHard,constraints:{ownedOnly:false}});
-assert.equal(lilyResult.status,'ok',`Lily & Lyleen Schwer muss ein Team liefern: ${lilyResult.reason||''}`);
-assert.equal(lilyResult.teams[0].objective,'practical');
-assert.equal(lilyResult.teams[0].members.length,5);
+validateGlobalCarrySupportTeam(lilyResult,'Lily & Lyleen Schwer');
 assert.equal(lilyResult.teams[0].members.filter(member=>member.estimatedDpsRange).length,1,'Auch Lily Schwer darf nur einen aktiven Pal-DPS haben');
 
 const neutralResult=optimizeTeam({activity:'normal_team',encounter:{id:'manual-neutral',name:'Bosskampf',elements:['Neutral']},constraints:{ownedOnly:false}});
@@ -78,8 +92,10 @@ for(const team of result.teams){
   assert.equal(team.members.length,5);
   assert.equal(team.members.filter(member=>member.estimatedDpsRange).length,1,'Nur der aktive Haupt-Pal darf eigenen Pal-DPS tragen');
   assert.ok(team.assumptions.some(text=>text.includes('Eigene Zielfunktion')),'Zielfunktion muss im Ergebnis nachvollziehbar sein');
+  assert.ok(team.assumptions.some(text=>text.includes('4★')),'Globale Endgame-Annahme muss transparent sein');
   assert.ok(Number.isFinite(team.objectiveScore));
   assert.ok(team.supportModel&&team.supportModel.multiplier>=1,'Team muss ein explizites Carry-Support-Modell besitzen');
+  assert.ok(Number.isInteger(team.effectiveSupportSlots)&&team.effectiveSupportSlots>=1,'Wirksame Supportslots müssen ausgewiesen werden');
   for(const applied of team.stacking.applied){
     if(applied.quantified===false)assert.equal(applied.value,null,'Unquantifizierte Partnereffekte dürfen keinen erfundenen Zahlenwert tragen');
   }
