@@ -3,7 +3,7 @@ import { PAL_COMBAT_READINESS, PAL_COMBAT_READINESS_REPORT, readinessForPal, isO
 
 assert.equal(PAL_COMBAT_READINESS_REPORT.playablePalsTotal,PAL_COMBAT_READINESS.length,'Report und Readiness-Liste müssen dieselbe Pal-Anzahl haben');
 assert.ok(PAL_COMBAT_READINESS.length>0,'Phase-4-Readiness darf nach dem Datenbuild nicht leer sein');
-assert.equal(PAL_COMBAT_READINESS_REPORT.missingStats,0,'Kein optimizerfähiger Pal-Datensatz darf fehlende Species-Kampfstats haben');
+assert.equal(PAL_COMBAT_READINESS_REPORT.missingStats,0,'Kein Phase-4-Core-Datensatz darf fehlende Species-Kampfstats haben');
 assert.equal(PAL_COMBAT_READINESS_REPORT.missingEnglishNames,0,'Jeder spielbare Pal braucht einen englischen Namen aus der Lokalisierung');
 assert.ok(PAL_COMBAT_READINESS.every(row=>row.skillFruitEligibility?.mode==='all_pals_can_consume_available_skill_fruits'),'Skill-Fruit-Regel muss explizit pro Pal dokumentiert sein');
 assert.ok(PAL_COMBAT_READINESS.every(row=>Array.isArray(row.exclusiveSkills)),'Exklusive Skills müssen als explizite Liste vorliegen');
@@ -14,18 +14,22 @@ assert.ok(PAL_COMBAT_READINESS.every(row=>Array.isArray(row.condensationEffects?
 assert.ok(PAL_COMBAT_READINESS.every(row=>Array.isArray(row.condensationEffects?.partnerSkillRankByStars)&&row.condensationEffects.partnerSkillRankByStars.join(',')==='1,2,3,4,5'),'Kondensierung muss Partner-Skill-Rang 1 bis 5 abbilden');
 
 for(const row of PAL_COMBAT_READINESS){
-  assert.equal(row.optimizerEligible,row.criticalMissing.length===0,`${row.canonicalId}: Eligibility muss direkt vom Daten-Gate abhängen`);
+  assert.equal(row.optimizerEligible,row.coreMissing.length===0,`${row.canonicalId}: Phase-4-Core-Eligibility muss direkt vom Core-Gate abhängen`);
   if(row.optimizerEligible){
-    assert.ok(row.hpScaling>0&&row.attackScaling>0&&row.defenseScaling>0,`${row.canonicalId}: Eligible Pal ohne valide Stats`);
-    assert.ok(row.activeSkills.length>0,`${row.canonicalId}: Eligible Pal ohne natürliche Skills`);
-    assert.ok(row.partnerSkill?.name&&row.partnerSkill?.description,`${row.canonicalId}: Eligible Pal ohne Partnerfähigkeit`);
-    assert.ok(row.partnerEffects.length>0,`${row.canonicalId}: Eligible Pal ohne Partner-Effekt`);
-    assert.ok(row.partnerRankValues.length>0,`${row.canonicalId}: Eligible Pal ohne Partner-Rangwerte`);
-    assert.equal(isOptimizerEligiblePal(row),true,`${row.canonicalId}: Lookup muss Eligibility erhalten`);
+    assert.ok(row.hpScaling>0&&row.attackScaling>0&&row.defenseScaling>0,`${row.canonicalId}: Core-eligible Pal ohne valide Stats`);
+    assert.ok(row.activeSkills.length>0,`${row.canonicalId}: Core-eligible Pal ohne natürliche Skills`);
+    assert.equal(isOptimizerEligiblePal(row),true,`${row.canonicalId}: Lookup muss Core-Eligibility erhalten`);
+  }
+  if(row.completeCombatData){
+    assert.ok(row.partnerSkill?.name&&row.partnerSkill?.description,`${row.canonicalId}: Vollständiger Datensatz ohne Partnerfähigkeit`);
+    assert.ok(row.partnerEffects.length>0,`${row.canonicalId}: Vollständiger Datensatz ohne Partner-Effekt`);
+    assert.ok(row.partnerRankValues.length>0,`${row.canonicalId}: Vollständiger Datensatz ohne Partner-Rangwerte`);
+    assert.equal(row.partnerMissing.length,0,`${row.canonicalId}: Vollständiger Datensatz darf keine Partner-Lücke besitzen`);
   }
   assert.equal(readinessForPal(row)?.canonicalId,row.canonicalId,`${row.canonicalId}: Readiness-Lookup muss kanonisch auflösbar sein`);
 }
 
+assert.equal(PAL_COMBAT_READINESS_REPORT.completeCombatData,PAL_COMBAT_READINESS.filter(row=>row.completeCombatData).length);
 assert.equal(PAL_COMBAT_READINESS_REPORT.missingSkills,PAL_COMBAT_READINESS.filter(row=>row.missingFields.includes('activeSkills')).length);
 assert.equal(PAL_COMBAT_READINESS_REPORT.missingPartnerEffects,PAL_COMBAT_READINESS.filter(row=>row.missingFields.includes('partnerEffects')).length);
 assert.equal(PAL_COMBAT_READINESS_REPORT.missingPartnerRankValues,PAL_COMBAT_READINESS.filter(row=>row.missingFields.includes('partnerRankValues')).length);
