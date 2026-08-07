@@ -30,7 +30,7 @@ for(const pal of COMBAT_GRAPH.pals){
 const orserk=getPalKnowledge('orserk');
 assert.ok(orserk,'Kanonische ID orserk muss auflösbar sein');
 assert.equal(orserk.canonicalId,'orserk');
-assert.equal(getPalKnowledge('oserK')?.dexKey,orserk.dexKey,'Historische Schreibweise muss auf dieselbe Form zeigen');
+assert.equal(getPalKnowledge('oserK')?.canonicalId,orserk.canonicalId,'Historische Schreibweise muss auf dieselbe kanonische Identität zeigen');
 assert.ok(orserk.elements.includes('Elektro'));
 
 const sourceSparkit=PARTNER_DATA.find(row=>Number(String(row.paldeck).match(/\d+/)?.[0])===7);
@@ -40,6 +40,8 @@ assert.ok(sourceSparkitBuff,`Sparkit #7 hat in PARTNER_DATA keinen erwarteten El
 
 const sparkit=getPalKnowledge('sparkit');
 assert.ok(sparkit,'Sparkit muss im Combat Graph vorhanden sein');
+assert.equal(sparkit.dexNumber,7,`Sparkit muss auf Paldex #7 zeigen, nicht auf einen internen Deck-Index. Graph: ${JSON.stringify({dexNumber:sparkit.dexNumber,variantId:sparkit.variantId,displayNumber:sparkit.displayNumber,internalId:sparkit.internalId})}`);
+assert.equal(sparkit.variantId,'base','Sparkits interner Codename darf nicht als Variante interpretiert werden');
 const sparkitBuff=sparkit.partner.effects.find(effect=>effect.type==='pal_element_attack'&&effect.activation==='in_party'&&effect.element==='Elektro');
 assert.ok(sparkitBuff,`Sparkits Elektro-In-Party-Buff muss aus den Partnerdaten im Combat Graph ankommen. Graph: ${JSON.stringify({dexNumber:sparkit.dexNumber,variantId:sparkit.variantId,displayNumber:sparkit.displayNumber,effects:sparkit.partner.effects})}`);
 assert.ok(Array.isArray(sparkitBuff.valuesByRank)&&sparkitBuff.valuesByRank.length===5,'Sparkits Rangwerte müssen strukturiert vorliegen');
