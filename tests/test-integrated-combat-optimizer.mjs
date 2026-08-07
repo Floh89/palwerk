@@ -33,6 +33,10 @@ if(result.status==='ok'){
   assert.ok(carry.rotationModel?.events?.length>0,'Carry muss die ereignisbasierte Rotation verwenden');
   assert.equal(carry.rotation.length,3,'Carry muss eine Dreierrotation besitzen');
   assert.ok(carry.passiveBuild?.passives?.length===4,'Carry muss einen strukturierten Vierer-Passivbuild besitzen');
+  assert.equal(carry.calculatedStats?.status,'ok','Carry muss die native-validierte Statfunktion verwenden');
+  assert.ok(carry.calculatedStats.effectiveAttack>0,'Berechneter effektiver Angriff muss positiv sein');
+  assert.equal(carry.calculatedStats.inputs.souls.attack,20,'Globales Endgame-Profil muss den aktuellen Soul-Maximalrang 20 verwenden');
+  assert.equal(carry.calculatedStats.effectiveHP,null,'EHP darf vor validierter Defense-Mitigation nicht erfunden werden');
   assert.ok(Array.isArray(team.phaseCoverage)&&team.phaseCoverage.length===2,'Bossphasen müssen sichtbar bewertet werden');
   assert.ok(team.assumptions.some(value=>value.includes('Bossphase')),'Die Ergebnisannahmen müssen die Phasenlogik transparent erklären');
   if(team.unquantifiedSupportCount>0){
