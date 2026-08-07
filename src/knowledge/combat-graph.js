@@ -13,7 +13,7 @@ const text=value=>String(value??'').trim();
 const number=value=>value==null||value===''?null:Number.isFinite(Number(value))?Number(value):null;
 const list=value=>Array.isArray(value)?value:[];
 const slug=value=>text(value).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-const dexToken=value=>text(value).toUpperCase().replace(/[^0-9A-Z]/g,'');
+const dexToken=value=>{const raw=text(value).toUpperCase().replace(/[^0-9A-Z]/g,'');const match=raw.match(/^0*(\d+)([A-Z]*)$/);return match?`${Number(match[1])}${match[2]}`:raw;};
 const partnerByDex=new Map(list(PARTNER_DATA).map(row=>[dexToken(row.paldeck),row]));
 export function normalizeInternalId(value){return slug(text(value).replace(/^EPalWazaID::/,'').replace(/^EPalPassiveSkillID::/,''));}
 export function normalizeElement(value){const raw=text(value);return ELEMENT_MAP[raw]||raw||'Neutral';}
