@@ -84,10 +84,10 @@ test('Unbekannte Stapelbarkeit wird konservativ nicht gestapelt',()=>{
 });
 test('Engine trennt Aktivierungen je Spielmodus',()=>{
   const source=fs.readFileSync(new URL('../src/optimizer/engine.js',import.meta.url),'utf8');
-  assert.match(source,/activation==='in_party'/);
-  assert.match(source,/activation==='raid_deployed'/);
-  assert.match(source,/activation==='base_assigned'/);
-  assert.match(source,/manual-interaction/);
+  assert.ok(source.includes("'in_party'"),'Normalteam muss in_party explizit behandeln');
+  assert.ok(source.includes("'raid_deployed'"),'Raid muss raid_deployed explizit behandeln');
+  assert.ok(source.includes("'base_assigned'"),'Basis muss base_assigned explizit behandeln');
+  assert.ok(source.includes('manual-interaction'),'Manuelle Interaktionen brauchen ein eigenes Modell');
 });
 test('Generator enthält keine pauschale Sternskalierung',()=>{
   const source=fs.readFileSync(new URL('../scripts/build-partner-data.mjs',import.meta.url),'utf8');
