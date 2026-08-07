@@ -4,6 +4,7 @@ import './catalog-pack-7.js';
 import './generated-core.js';
 import './generated-partner-data.js';
 import './combat-data.js';
+import { COMBAT_GRAPH, graphQualitySummary } from './knowledge/combat-graph.js';
 
 import './app.js';
 import './data-enrichment-ui.js';
@@ -14,9 +15,12 @@ import { installSynergyUI } from './optimizer/synergy-ui.js';
 installOptimizerUI();
 installSynergyUI();
 
+window.PALWERK_COMBAT_GRAPH = COMBAT_GRAPH;
 window.PALWERK_RUNTIME = Object.freeze({
   bootstrap: 'src/main.js',
   optimizer: 'src/optimizer/engine.js',
+  knowledgeGraph: 'src/knowledge/combat-graph.js',
+  knowledgeQuality: graphQualitySummary(COMBAT_GRAPH),
   synergy: 'src/optimizer/synergy.js',
-  architectureVersion: '1.1.0'
+  architectureVersion: '1.2.0'
 });
