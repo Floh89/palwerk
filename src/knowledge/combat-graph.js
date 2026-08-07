@@ -1,4 +1,5 @@
 import { ACTIVE_SKILL_RECORDS } from '../generated-core.js';
+import '../generated-partner-data.js';
 import { PAL_CATALOG } from '../catalog.js';
 import { createCanonicalPalRegistry, isPlayableCatalogPal, resolveCanonicalPal } from '../data/canonical-pals.js';
 import { resolvePassive } from '../data/passives.js';
