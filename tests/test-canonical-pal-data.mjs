@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
-import { CANONICAL_PALS, canonicalDataReport, createCanonicalPalRegistry, resolveCanonicalPal } from '../src/data/canonical-pals.js';
-import { COMBAT_GRAPH, getPalKnowledge } from '../src/knowledge/combat-graph.js';
+
+await import('../src/catalog-pack-5.js');
+await import('../src/catalog-pack-6.js');
+await import('../src/catalog-pack-7.js');
+await import('../src/generated-core.js');
+await import('../src/generated-partner-data.js');
+
+const { CANONICAL_PALS, canonicalDataReport, createCanonicalPalRegistry, resolveCanonicalPal } = await import('../src/data/canonical-pals.js');
+const { COMBAT_GRAPH, getPalKnowledge } = await import('../src/knowledge/combat-graph.js');
 
 const report=canonicalDataReport();
 assert.ok(report.total>200,'Der kanonische Katalog muss den vollständigen spielbaren Bestand enthalten');
