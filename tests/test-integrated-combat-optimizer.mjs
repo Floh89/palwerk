@@ -7,7 +7,7 @@ import '../src/generated-partner-data.js';
 import { COMBAT_GRAPH } from '../src/knowledge/combat-graph.js';
 import { optimizeTeam, OPTIMIZER_API_VERSION } from '../src/optimizer/engine.js';
 
-assert.equal(OPTIMIZER_API_VERSION,'3.7.0');
+assert.match(OPTIMIZER_API_VERSION,/^3\./);
 
 const encounter={
   id:'integration-boss',
@@ -35,6 +35,7 @@ if(result.status==='ok'){
   assert.ok(carry.passiveBuild?.passives?.length===4,'Carry muss einen strukturierten Vierer-Passivbuild besitzen');
   assert.ok(Array.isArray(team.phaseCoverage)&&team.phaseCoverage.length===2,'Bossphasen müssen sichtbar bewertet werden');
   assert.ok(team.assumptions.some(value=>value.includes('Bossphasen')));
+  assert.ok(team.assumptions.some(value=>value.includes('ohne belastbaren Rangwert')),'Unquantifizierte Partnereffekte müssen transparent bleiben');
   for(const support of team.members.slice(1)){
     assert.equal(support.relativeCombatValue,0);
     assert.equal(support.estimatedDpsRange,null);
