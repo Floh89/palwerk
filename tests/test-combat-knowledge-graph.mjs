@@ -46,6 +46,7 @@ assert.ok(summary.skillsWithAnimation<=summary.skills,'Fehlende Animationswerte 
 assert.ok(summary.effectsWithRankValues<=summary.partnerEffects,'Rangwerte dürfen nur gezählt werden, wenn sie wirklich vorhanden sind');
 
 const duplicateGraph=createCombatKnowledgeGraph([orserk.sourceRef,orserk.sourceRef]);
-assert.ok(duplicateGraph.registry.exactDuplicates.length>0,'Quellduplikate müssen im Registry-Bericht sichtbar sein');
+assert.equal(duplicateGraph.pals.length,1,'Doppelte Formen müssen vor Nutzung im Graphen konsolidiert werden');
+assert.equal(duplicateGraph.registry.sourceDuplicates.length,1,'Die Quellduplikation muss im Qualitätsbericht sichtbar bleiben');
 
 console.log('Combat-Knowledge-Graph-Tests bestanden.');
