@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { PARTNER_DATA } from '../src/generated-partner-data.js';
 import { COMBAT_GRAPH, DATA_STATUSES, ELEMENT_COUNTER, createCombatKnowledgeGraph, encounterPhases, getPalKnowledge, graphQualitySummary, normalizeInternalId } from '../src/knowledge/combat-graph.js';
 
-assert.equal(COMBAT_GRAPH.schemaVersion,'1.5.0');
-assert.equal(COMBAT_GRAPH.createdFrom,'PAL_CATALOG_PLUS_PARTNER_DATA_BY_NAME');
-assert.ok(COMBAT_GRAPH.pals.length>200,'Der Graph muss den vollständigen Pal-Katalog abbilden');
+assert.equal(COMBAT_GRAPH.schemaVersion,'1.6.0');
+assert.equal(COMBAT_GRAPH.createdFrom,'PAL_CATALOG_PLUS_PARTNER_DATA_PLUS_COMBAT_READINESS');
+assert.ok(COMBAT_GRAPH.pals.length>200,'Der Graph muss den vollständigen kanonischen Pal-Katalog abbilden');
 assert.equal(COMBAT_GRAPH.registry.duplicateDexKeys.length,0,'Der produktive Graph darf keine doppelten dexKeys enthalten');
 assert.equal(normalizeInternalId('EPalWazaID::FireBlast'),'fireblast');
 assert.equal(ELEMENT_COUNTER.Wasser,'Elektro');
@@ -13,6 +13,8 @@ for(const pal of COMBAT_GRAPH.pals){
   assert.ok(pal.canonicalId&&pal.dexKey&&pal.catalogId&&pal.name,'Jeder Pal braucht kanonische ID, dexKey, Katalog-ID und Anzeigename');
   assert.ok(Array.isArray(pal.sourceIds)&&pal.sourceIds.length>0);
   assert.ok(Array.isArray(pal.roles));
+  assert.ok(pal.dataReadiness,'Jeder kanonische Pal im produktiven Graph muss einen Phase-4-Readiness-Datensatz tragen');
+  assert.equal(pal.playable,pal.dataReadiness.optimizerEligible,'Produktive Kampf-Eligibility muss aus dem Phase-4-Core-Gate stammen');
   for(const skill of pal.skills){
     assert.ok(skill.id&&skill.name);
     for(const key of ['rawPower','cooldown','animation','hitRate','multiHit','aoe','range']){
@@ -70,6 +72,8 @@ assert.ok(summary.skillsWithPower>0);
 assert.ok(summary.partnerEffects>0);
 assert.equal(summary.duplicateDexKeys,0);
 assert.equal(summary.exactDuplicates,0);
+assert.equal(summary.optimizerEligiblePals,summary.playablePals,'Graph-Eligibility und Phase-4-Readiness müssen konsistent sein');
+assert.equal(summary.optimizerEligiblePals+summary.excludedByDataGate,summary.totalPals,'Readiness-Gate muss jeden kanonischen Pal klassifizieren');
 assert.ok(summary.skillsWithAnimation<=summary.skills,'Fehlende Animationswerte dürfen nicht erfunden werden');
 assert.ok(summary.effectsWithRankValues<=summary.partnerEffects,'Rangwerte dürfen nur gezählt werden, wenn sie wirklich vorhanden sind');
 assert.ok(summary.structuredFixedPassives<=summary.fixedPassives);
