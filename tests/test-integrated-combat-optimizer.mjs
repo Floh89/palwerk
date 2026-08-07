@@ -7,7 +7,7 @@ import '../src/generated-partner-data.js';
 import { COMBAT_GRAPH } from '../src/knowledge/combat-graph.js';
 import { optimizeTeam, OPTIMIZER_API_VERSION } from '../src/optimizer/engine.js';
 
-assert.equal(OPTIMIZER_API_VERSION,'3.6.0');
+assert.equal(OPTIMIZER_API_VERSION,'3.7.0');
 
 const encounter={
   id:'integration-boss',
