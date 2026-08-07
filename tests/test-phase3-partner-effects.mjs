@@ -13,8 +13,13 @@ const required=['activation','requiresEquipment','equipmentId','stackingGroup','
 test('Optimizer API bleibt auf der konsolidierten 3.x-Schnittstelle',()=>assert.match(OPTIMIZER_API_VERSION,/^3\./));
 test('Partnerdaten enthalten strukturierte Effekte',()=>assert.ok(effects.length>0));
 test('Wiki-Cargo-Rangdaten werden tatsächlich eingelesen',()=>{
-  assert.ok(PARTNER_REPORT.scaleRows>0,'Cargo-Quelle liefert keine verwertbaren Skalierungszeilen');
-  assert.ok(PARTNER_REPORT.withRankValues>0,'Kein Partnereffekt besitzt echte Rangwerte');
+  assert.ok(PARTNER_REPORT.scaleRows>=400,'Cargo-Quelle liefert auffällig wenige Skalierungszeilen');
+  assert.ok(PARTNER_REPORT.withRankValues>=30,'Rangabdeckung ist unter den bestätigten Stand gefallen');
+});
+test('Kampfrelevante In-Party-Rangwerte bleiben verfügbar',()=>{
+  assert.ok(PARTNER_REPORT.combatInParty>=15,'Zu wenige kampfrelevante In-Party-Effekte erkannt');
+  assert.ok(PARTNER_REPORT.combatInPartyWithRankValues>=10,'Zu wenige kampfrelevante In-Party-Effekte besitzen vollständige Rangwerte');
+  assert.ok(PARTNER_REPORT.cargoDerivedEffects>=30,'Strukturierte Cargo-Ableitung ist nicht aktiv');
 });
 test('Jeder Partnereffekt erfüllt den vollständigen Vertrag',()=>{
   for(const {pal,effect} of effects){
