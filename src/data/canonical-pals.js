@@ -1,4 +1,5 @@
 import { PAL_CATALOG } from '../catalog.js';
+import { mergePalRecordsByPriority } from './source-priority.js';
 
 const text = value => String(value ?? '').trim();
 const slug = value => text(value)
@@ -16,7 +17,7 @@ const parseDex = value => {
 const BLOCKED = /astralym|amaterasuwolf|quest|avatar|enemy|friend|summon|tower|raid_|npc|human/i;
 const CANONICAL_ALIASES = Object.freeze({ thunderdragonman: 'orserk', oserk: 'orserk' });
 
-export const CANONICAL_PAL_SCHEMA = '1.3.1';
+export const CANONICAL_PAL_SCHEMA = '1.4.0';
 
 export function isPlayableCatalogPal(pal) {
   return Boolean(
@@ -51,16 +52,6 @@ function sourceIds(pal) {
   return [...new Set([pal?.key, pal?.internalId, pal?.rawRecord?.id].map(text).filter(Boolean))];
 }
 
-function richness(pal) {
-  return (pal?.skills?.length || 0) * 3 +
-    Object.keys(pal?.work || {}).length * 2 +
-    (pal?.stats?.attack ? 4 : 0) +
-    (pal?.stats?.hp ? 2 : 0) +
-    (pal?.partner?.effects?.length || 0) * 2 +
-    (pal?.rawRecord ? 5 : 0) +
-    (pal?.verified ? 1 : 0);
-}
-
 function buildRows(catalog) {
   return catalog.filter(isPlayableCatalogPal).map(pal => {
     const canonicalId = canonicalIdFor(pal);
@@ -86,8 +77,7 @@ function buildRows(catalog) {
 }
 
 function mergeRows(first, second) {
-  const preferred = richness(second.source) > richness(first.source) ? second : first;
-  const other = preferred === first ? second : first;
+  const mergedSource = mergePalRecordsByPriority(first.source, second.source);
   const aliases = [...new Set([
     first.displayName,
     second.displayName,
@@ -98,13 +88,15 @@ function mergeRows(first, second) {
     ...(first.mergedSources || [first.source]),
     ...(second.mergedSources || [second.source])
   ];
+  const canonicalId = CANONICAL_ALIASES[slug(mergedSource.name)] || first.canonicalId || second.canonicalId;
   return Object.freeze({
-    ...preferred,
+    ...first,
+    canonicalId,
     sourceIds: Object.freeze([...new Set([...first.sourceIds, ...second.sourceIds])]),
     aliases: Object.freeze(aliases),
     mergedSources: Object.freeze(mergedSources),
-    source: preferred.source,
-    displayName: preferred.displayName || other.displayName
+    source: Object.freeze(mergedSource),
+    displayName: text(mergedSource.name) || first.displayName || second.displayName
   });
 }
 
