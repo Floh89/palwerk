@@ -9,13 +9,19 @@ import { COMBAT_GRAPH } from '../src/knowledge/combat-graph.js';
 import { resolveSkill } from '../src/data/skills.js';
 import { optimizeSkillRotation, rotationOptimizationCacheSize } from '../src/optimizer/skill-rotations.js';
 import { passiveOptimizationCacheSize } from '../src/optimizer/passive-builds.js';
-import { optimizeTeam, TEAM_OBJECTIVES } from '../src/optimizer/engine.js';
+import { optimizeTeam, TEAM_OBJECTIVES, switchUtility } from '../src/optimizer/engine.js';
 
 assert.ok(COMBAT_GRAPH.pals.length>200,'Combat Graph muss vor der Optimierung aufgebaut sein');
 assert.deepEqual(Object.keys(TEAM_OBJECTIVES),['practical','element','safest','speedrun']);
 assert.ok(new Set(Object.values(TEAM_OBJECTIVES).map(x=>x.passiveGoal)).size>=2,'Zielfunktionen müssen verschiedene Passive-Ziele verwenden');
 
 const encounter={id:'objective-test-boss',name:'Objective Test Boss',elements:['Schatten'],timeLimit:180,phases:[{id:'dark',hpShare:.6,elements:['Schatten'],recommendedCounters:['Drache']},{id:'ice',hpShare:.4,elements:['Eis'],recommendedCounters:['Feuer']}]};
+const activeSynthetic={rotation:[{element:'Drache'}],palKnowledge:{elements:['Drache']},relativeCombatValue:100};
+const redundantSwitch={rotation:[{element:'Drache'}],palKnowledge:{elements:['Drache']},relativeCombatValue:1000};
+const complementarySwitch={rotation:[{element:'Feuer'}],palKnowledge:{elements:['Feuer']},relativeCombatValue:100};
+assert.equal(switchUtility(activeSynthetic,redundantSwitch,encounter,'practical'),0,'Ein Reserve-Pal ohne zusätzliche Phasenabdeckung darf keinen erfundenen Nutzen erhalten');
+assert.ok(switchUtility(activeSynthetic,complementarySwitch,encounter,'practical')>0,'Ein echter Phasen-Counter darf Wechselnutzen erhalten');
+
 const playable=COMBAT_GRAPH.pals.filter(pal=>pal.playable);
 const sample=playable.filter(pal=>pal.skills.length>=3&&pal.skills.filter(skill=>resolveSkill(skill.id)).length>=3).slice(0,32);
 assert.ok(sample.length>=24,'Breite Stichprobe mit vollständigen Skilldaten erforderlich');
@@ -45,7 +51,11 @@ for(const team of result.teams){
   assert.equal(team.members.length,5);
   assert.equal(team.members.filter(member=>member.estimatedDpsRange).length,1,'Nur der aktive Haupt-Pal darf eigenen Pal-DPS tragen');
   assert.ok(team.assumptions.some(text=>text.includes('Eigene Zielfunktion')),'Zielfunktion muss im Ergebnis nachvollziehbar sein');
+  assert.ok(team.assumptions.some(text=>text.includes('ohne belastbaren Rangwert')),'Nicht quantifizierte Supports müssen transparent ausgewiesen werden');
   assert.ok(Number.isFinite(team.objectiveScore));
+  for(const applied of team.stacking.applied){
+    if(applied.quantified===false)assert.equal(applied.value,null,'Unquantifizierte Partnereffekte dürfen keinen erfundenen Zahlenwert tragen');
+  }
 }
 const element=result.teams.find(team=>team.objective==='element');
 assert.ok(element.elementAlignment>=0,'Elementteam braucht eine explizite Phasen-/Counter-Ausrichtung');
