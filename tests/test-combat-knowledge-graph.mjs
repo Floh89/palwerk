@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { COMBAT_GRAPH, DATA_STATUSES, ELEMENT_COUNTER, createCombatKnowledgeGraph, encounterPhases, getPalKnowledge, graphQualitySummary, normalizeInternalId } from '../src/knowledge/combat-graph.js';
 
-assert.equal(COMBAT_GRAPH.schemaVersion,'1.1.0');
+assert.equal(COMBAT_GRAPH.schemaVersion,'1.2.0');
 assert.ok(COMBAT_GRAPH.pals.length>200,'Der Graph muss den vollständigen Pal-Katalog abbilden');
 assert.equal(COMBAT_GRAPH.registry.duplicateDexKeys.length,0,'Der produktive Graph darf keine doppelten dexKeys enthalten');
 assert.equal(normalizeInternalId('EPalWazaID::FireBlast'),'fireblast');
@@ -17,6 +17,9 @@ for(const pal of COMBAT_GRAPH.pals){
       assert.ok(skill[key]&&'value' in skill[key],`Skillfeld ${key} muss Datenwert und Qualität tragen`);
       assert.ok(DATA_STATUSES.includes(skill[key].status));
     }
+  }
+  for(const passive of pal.fixedPassives){
+    assert.ok(passive.id&&passive.sourceId&&Array.isArray(passive.effects),'Feste Passives müssen aus der kanonischen Passive-Datenquelle stammen');
   }
   for(const effect of pal.partner.effects){
     for(const key of ['activation','stackingGroup','stackable','target','element','valuesByRank','appliesTo','conditions','source','verifiedAt','confidence','status'])assert.ok(key in effect,`Partnereffekt ohne ${key}`);
@@ -44,6 +47,7 @@ assert.equal(summary.duplicateDexKeys,0);
 assert.equal(summary.exactDuplicates,0);
 assert.ok(summary.skillsWithAnimation<=summary.skills,'Fehlende Animationswerte dürfen nicht erfunden werden');
 assert.ok(summary.effectsWithRankValues<=summary.partnerEffects,'Rangwerte dürfen nur gezählt werden, wenn sie wirklich vorhanden sind');
+assert.ok(summary.structuredFixedPassives<=summary.fixedPassives);
 
 const duplicateGraph=createCombatKnowledgeGraph([orserk.sourceRef,orserk.sourceRef]);
 assert.equal(duplicateGraph.pals.length,1,'Doppelte Formen müssen vor Nutzung im Graphen konsolidiert werden');
