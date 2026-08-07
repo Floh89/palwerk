@@ -16,7 +16,7 @@ const parseDex = value => {
 const BLOCKED = /astralym|amaterasuwolf|quest|avatar|enemy|friend|summon|tower|raid_|npc|human/i;
 const CANONICAL_ALIASES = Object.freeze({ thunderdragonman: 'orserk', oserk: 'orserk' });
 
-export const CANONICAL_PAL_SCHEMA = '1.3.0';
+export const CANONICAL_PAL_SCHEMA = '1.3.1';
 
 export function isPlayableCatalogPal(pal) {
   return Boolean(
@@ -164,10 +164,15 @@ export const CANONICAL_PALS = createCanonicalPalRegistry();
 
 export function resolveCanonicalPal(id, { variantId = null } = {}) {
   const raw = slug(id);
-  const key = CANONICAL_ALIASES[raw] || raw;
+  const aliasTarget = CANONICAL_ALIASES[raw] || null;
+  const key = aliasTarget || raw;
+  const matches = CANONICAL_PALS.byCanonicalId.get(key) || [];
+  if (aliasTarget) {
+    if (variantId) return matches.find(row => row.variantId === slug(variantId)) || null;
+    return matches.find(row => row.variantId === 'base') || matches[0] || null;
+  }
   const bySource = CANONICAL_PALS.bySourceId.get(raw);
   if (bySource) return bySource;
-  const matches = CANONICAL_PALS.byCanonicalId.get(key) || [];
   if (variantId) return matches.find(row => row.variantId === slug(variantId)) || null;
   return matches.find(row => row.variantId === 'base') || matches[0] || null;
 }
