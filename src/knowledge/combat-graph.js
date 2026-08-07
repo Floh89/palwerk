@@ -8,7 +8,7 @@ export const ELEMENTS=Object.freeze(['Neutral','Feuer','Wasser','Gras','Elektro'
 const ELEMENT_MAP=Object.freeze({Normal:'Neutral',Neutral:'Neutral',Fire:'Feuer',Water:'Wasser',Leaf:'Gras',Grass:'Gras',Electricity:'Elektro',Electric:'Elektro',Ice:'Eis',Ground:'Erde',Earth:'Erde',Dark:'Schatten',Dragon:'Drache'});
 export const ELEMENT_COUNTER=Object.freeze({Feuer:'Wasser',Wasser:'Elektro',Gras:'Feuer',Elektro:'Erde',Eis:'Feuer',Erde:'Gras',Schatten:'Drache',Drache:'Eis',Neutral:'Schatten'});
 const text=value=>String(value??'').trim();
-const number=value=>Number.isFinite(Number(value))?Number(value):null;
+const number=value=>value==null||value===''?null:Number.isFinite(Number(value))?Number(value):null;
 const list=value=>Array.isArray(value)?value:[];
 const slug=value=>text(value).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 export function normalizeInternalId(value){return slug(text(value).replace(/^EPalWazaID::/,'').replace(/^EPalPassiveSkillID::/,''));}
