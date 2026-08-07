@@ -37,6 +37,8 @@ const fire={id:'fire',name:'Fire',element:'Feuer',rawPower:q(100),cooldown:q(5),
 const water={id:'water',name:'Water',element:'Wasser',rawPower:q(100),cooldown:q(5),animation:q(1),projectileTime:q(0),multiHit:q(1),hitRate:q(1),aoe:q(0),range:q(null,'missing'),channeling:q(0)};
 const fast={id:'fast',name:'Fast',element:'Feuer',rawPower:q(55),cooldown:q(1),animation:q(.4),projectileTime:q(0),multiHit:q(1),hitRate:q(1),aoe:q(0),range:q(null,'missing'),channeling:q(0)};
 const multi={id:'multi',name:'Multi',element:'Feuer',rawPower:q(30),cooldown:q(3),animation:q(.8),projectileTime:q(0),multiHit:q(4),hitRate:q(1),aoe:q(0),range:q(null,'missing'),channeling:q(0)};
+const selfDestruct={id:'selfdestruct',name:'Self Destruct',element:'Neutral',rawPower:q(300),cooldown:q(16),animation:q(1),projectileTime:q(0),multiHit:q(1),hitRate:q(1),aoe:q(0),range:q(null,'missing'),channeling:q(0)};
+const beeDestruct={...selfDestruct,id:'selfdestruct-bee',name:'Bee Self Destruct',element:'Gras'};
 const pal={elements:['Feuer']};
 const grassBoss={elements:['Gras']};
 const fireBoss={elements:['Feuer']};
@@ -47,6 +49,8 @@ assert.equal(stab.stab,1.2,'Gleiches Element muss STAB erhalten');
 assert.ok(stab.modelDps>noStab.modelDps,'STAB muss den Modellwert erhöhen');
 assert.ok(evaluateSkill(water,{pal:{elements:['Wasser']},encounter:fireBoss}).bossFit>1,'Wasser muss gegen Feuer als Counter gewertet werden');
 assert.equal(evaluateSkill(multi,{pal,encounter:grassBoss}).hits,4,'Mehrfachtreffer müssen strukturiert eingehen');
+assert.equal(evaluateSkill(selfDestruct,{pal,encounter:grassBoss}).incapacitatesUser,true,'SelfDestruct muss als terminal markiert sein');
+assert.equal(evaluateSkill(beeDestruct,{pal,encounter:grassBoss}).incapacitatesUser,true,'SelfDestruct_Bee muss als terminal markiert sein');
 
 const assumed={...fire,id:'assumed',name:'Assumed',animation:q(null,'missing'),projectileTime:q(null,'missing'),hitRate:q(null,'missing'),multiHit:q(null,'missing')};
 const assumedResult=evaluateSkill(assumed,{pal,encounter:grassBoss});
@@ -57,6 +61,13 @@ const simulation=simulateRotation([fire,fast,multi],{pal,encounter:grassBoss,dur
 assert.equal(simulation.status,'ok');
 assert.ok(simulation.events.length>3,'Die Rotation muss ereignisbasiert mehrere Einsätze erzeugen');
 assert.ok(simulation.modelDpsRange.low<simulation.modelDpsRange.high);
+
+const terminalSimulation=simulateRotation([fire,fast,selfDestruct],{pal,encounter:grassBoss,duration:60});
+const terminalIndex=terminalSimulation.events.findIndex(event=>event.skillId==='selfdestruct');
+assert.ok(terminalIndex>=0,'Selbstzerstörung muss in der Testrotation tatsächlich eingesetzt werden');
+assert.equal(terminalSimulation.incapacitated,true,'Pal muss nach Selbstzerstörung als kampfunfähig gelten');
+assert.equal(terminalIndex,terminalSimulation.events.length-1,'Nach Selbstzerstörung darf kein weiterer Skill eingesetzt werden');
+assert.equal(terminalSimulation.events.filter(event=>event.skillId==='selfdestruct').length,1,'Selbstzerstörung darf nur einmal eingesetzt werden');
 
 const optimized=optimizeSkillRotation({pal,encounter:grassBoss,availableSkillIds:[fire,water,fast,multi],duration:30});
 assert.equal(optimized.status,'ok');
