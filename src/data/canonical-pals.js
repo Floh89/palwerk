@@ -7,14 +7,16 @@ const slug = value => text(value)
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-|-$/g, '');
-const numericDex = value => {
-  const match = text(value).match(/\d+/);
-  return match ? Number(match[0]) : null;
+const parseDex = value => {
+  const match = text(value).toUpperCase().match(/^(\d+)([A-Z]+)?$/);
+  return match
+    ? { number: Number(match[1]), suffix: match[2]?.toLowerCase() || null }
+    : { number: null, suffix: null };
 };
 const BLOCKED = /astralym|amaterasuwolf|quest|avatar|enemy|friend|summon|tower|raid_|npc|human/i;
 const CANONICAL_ALIASES = Object.freeze({ thunderdragonman: 'orserk', oserk: 'orserk' });
 
-export const CANONICAL_PAL_SCHEMA = '1.1.0';
+export const CANONICAL_PAL_SCHEMA = '1.2.0';
 
 export function isPlayableCatalogPal(pal) {
   return Boolean(
@@ -38,7 +40,8 @@ function canonicalIdFor(pal) {
   return CANONICAL_ALIASES[technical] || CANONICAL_ALIASES[name] || name || technical;
 }
 
-function variantIdFor(pal, canonicalId) {
+function variantIdFor(pal, canonicalId, dexSuffix) {
+  if (dexSuffix) return dexSuffix;
   const technical = slug(technicalId(pal));
   if (!technical || technical === canonicalId || CANONICAL_ALIASES[technical] === canonicalId) return 'base';
   const stripped = technical.replace(new RegExp(`^${canonicalId}-?`), '');
@@ -62,17 +65,20 @@ function richness(pal) {
 function buildRows(catalog) {
   return catalog.filter(isPlayableCatalogPal).map(pal => {
     const canonicalId = canonicalIdFor(pal);
-    const dexNumber = numericDex(pal.paldeck);
-    const variantId = variantIdFor(pal, canonicalId);
-    const dexKey = dexNumber == null
+    const dex = parseDex(pal.paldeck);
+    const variantId = variantIdFor(pal, canonicalId, dex.suffix);
+    const dexKey = dex.number == null
       ? `unlisted:${canonicalId}:${variantId}`
-      : `${String(dexNumber).padStart(3, '0')}:${variantId}`;
+      : `${String(dex.number).padStart(3, '0')}:${variantId}`;
     return {
       canonicalId,
-      dexNumber,
+      dexNumber: dex.number,
+      dexSuffix: dex.suffix,
       dexKey,
       variantId,
-      displayNumber: dexNumber == null ? null : `${String(dexNumber).padStart(3, '0')}${variantId === 'base' ? '' : ` · ${variantId}`}`,
+      displayNumber: dex.number == null
+        ? null
+        : `${String(dex.number).padStart(3, '0')}${dex.suffix?.toUpperCase() || ''}`,
       displayName: text(pal.name),
       sourceIds: sourceIds(pal),
       source: pal
