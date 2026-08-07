@@ -34,7 +34,7 @@ assert.notEqual(first.uniqueId,second.uniqueId,'Mehrere Exemplare desselben Pals
 
 const roundTrip=migrateState(migrated,{});
 assert.equal(roundTrip.pals[0].uniqueId,migrated.pals[0].uniqueId,'Erneute Migration darf uniqueId nicht ändern');
-assert.equal(roundTrip.migration,null,'Bereits aktueller Zustand darf keine neue Migration vortäuschen');
+assert.deepEqual(roundTrip.migration,migrated.migration,'Bereits aktueller Zustand darf keinen neuen Migrationslauf vortäuschen');
 
 for(const key of ['level','weapons','weaponLevel','armor','shields','accessories','food','statusPoints'])assert.ok(key in migrated.player,`player.${key}`);
 for(const key of ['bosses','raids','towers','technologies','map','materials','bases'])assert.ok(key in migrated.progress,`progress.${key}`);
