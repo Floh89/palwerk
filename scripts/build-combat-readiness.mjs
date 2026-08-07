@@ -1,24 +1,29 @@
 import fs from 'node:fs';
 
 const read=(name,fallback={})=>{try{return JSON.parse(fs.readFileSync(`data/upstream/${name}`,'utf8'))}catch{return fallback}};
-await import('../src/generated-partner-data.js');
+const { PARTNER_DATA }=await import('../src/generated-partner-data.js');
 const { PAL_CATALOG }=await import('../src/catalog.js');
 const { createCanonicalPalRegistry }=await import('../src/data/canonical-pals.js');
 
 const enPals=read('pals-en.json',{});
-const SCHEMA='palwerk-combat-readiness-1.1.0';
+const SCHEMA='palwerk-combat-readiness-1.2.0';
 const GAME_VERSION='1.0';
 const generatedAt=new Date().toISOString();
-const norm=value=>String(value??'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
+const norm=value=>String(value??'').trim().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+const dexToken=value=>{const raw=String(value??'').toUpperCase().replace(/[^0-9A-Z]/g,'');const match=raw.match(/^0*(\d+)([A-Z]*)$/);return match?`${Number(match[1])}${match[2]}`:raw;};
 const localized=(source,id)=>source?.[id]||source?.[Object.keys(source||{}).find(key=>key.toLowerCase()===String(id).toLowerCase())]||null;
 const nonEmpty=value=>value!=null&&(Array.isArray(value)?value.length>0:typeof value==='object'?Object.keys(value).length>0:String(value).trim().length>0);
 const verifiedStat=value=>Number.isFinite(Number(value))&&Number(value)>0;
+const partnerByName=new Map((PARTNER_DATA||[]).filter(row=>row?.palName).map(row=>[norm(row.palName),row]));
+const partnerByDex=new Map((PARTNER_DATA||[]).filter(row=>row?.paldeck).map(row=>[dexToken(row.paldeck),row]));
 
 function englishName(pal){const row=localized(enPals,pal.internalId);return row?.localized_name||row?.name||null;}
+function generatedPartnerFor(pal,nameEN){return partnerByName.get(norm(nameEN))||partnerByName.get(norm(pal.name))||partnerByDex.get(dexToken(pal.paldeck))||null;}
 function activeSkills(pal){return (pal.skills||[]).map(skill=>({id:skill.id,level:Number(skill.level||0),nameDE:skill.name||skill.id,element:skill.data?.element||null,power:Number.isFinite(Number(skill.data?.power))?Number(skill.data.power):null,cooldown:Number.isFinite(Number(skill.data?.cool_time))?Number(skill.data.cool_time):null,source:'game_dump',gameVersion:GAME_VERSION}));}
 function exclusiveSkills(pal){return activeSkills(pal).filter(skill=>/^unique_/i.test(String(skill.id)));}
 function naturalPassives(pal){return (pal.fixedPassives||[]).map(passive=>({id:passive.id,nameDE:passive.name||passive.id,source:'game_dump',gameVersion:GAME_VERSION}));}
-function partnerEffects(pal){return (pal.partner?.effects||[]).filter(effect=>effect?.type&&effect.type!=='pending_partner_text'&&effect.type!=='partner_description_only');}
+function effectKey(effect){return JSON.stringify([effect?.type||null,effect?.activation||null,effect?.element||effect?.targetElement||null,effect?.target||null,effect?.stackingGroup||null]);}
+function partnerEffects(pal,generated){const legacy=(pal.partner?.effects||[]).filter(effect=>effect?.type&&effect.type!=='pending_partner_text'&&effect.type!=='partner_description_only');const current=(generated?.effects||[]).filter(effect=>effect?.type);return[...new Map([...legacy,...current].map(effect=>[effectKey(effect),effect])).values()];}
 function usefulRankEffects(effects){return effects.filter(effect=>Array.isArray(effect.valuesByRank)&&effect.valuesByRank.length===5&&effect.valuesByRank.every(value=>value!=null&&Number.isFinite(Number(value))));}
 function ambiguousEffects(effects){return effects.filter(effect=>effect.status==='missing'||effect.activation==='unknown'||effect.confidence==='low'||effect.stackable==null);}
 function mountRequirements(effects){const mounts=effects.filter(effect=>effect.type==='mount'||effect.activation==='mounted');if(!mounts.length)return{required:false,status:'not_applicable',equipmentIds:[],source:'partner_semantics'};const equipmentIds=[...new Set(mounts.filter(effect=>effect.requiresEquipment).map(effect=>effect.equipmentId).filter(Boolean))];const concrete=equipmentIds.filter(id=>id!=='pal-specific-equipment');return{required:mounts.some(effect=>effect.requiresEquipment),status:mounts.some(effect=>effect.requiresEquipment)&&concrete.length===0?'provisional':'verified',equipmentIds,source:'wiki_partner_data'};}
@@ -28,9 +33,9 @@ function fieldStatus(ok,source,status='verified'){return{ok:Boolean(ok),source:s
 
 const registry=createCanonicalPalRegistry(PAL_CATALOG);
 const rows=registry.rows.map(row=>{
-  const pal=row.source;
-  const skills=activeSkills(pal),exclusive=exclusiveSkills(pal),passives=naturalPassives(pal),effects=partnerEffects(pal),rankEffects=usefulRankEffects(effects),ambiguous=ambiguousEffects(effects),mount=mountRequirements(effects),condensation=condensationEffects(pal,effects),nameEN=englishName(pal),elements=String(pal.element||'').split('/').filter(Boolean);
-  const partnerSkill={id:norm(pal.partner?.name||row.canonicalId),name:pal.partner?.name||null,description:pal.partner?.description||null,source:pal.partner?.source||null,gameVersion:pal.partner?.gameVersion||null};
+  const pal=row.source,nameEN=englishName(pal),generatedPartner=generatedPartnerFor(pal,nameEN);
+  const skills=activeSkills(pal),exclusive=exclusiveSkills(pal),passives=naturalPassives(pal),effects=partnerEffects(pal,generatedPartner),rankEffects=usefulRankEffects(effects),ambiguous=ambiguousEffects(effects),mount=mountRequirements(effects),condensation=condensationEffects(pal,effects),elements=String(pal.element||'').split('/').filter(Boolean);
+  const partnerSkill={id:norm(generatedPartner?.skillName||pal.partner?.name||row.canonicalId),name:generatedPartner?.skillName||pal.partner?.name||null,description:generatedPartner?.description||pal.partner?.description||null,source:generatedPartner?.source||pal.partner?.source||null,gameVersion:generatedPartner?.gameVersion||pal.partner?.gameVersion||null};
   const required={
     canonicalId:fieldStatus(nonEmpty(row.canonicalId),'canonical_registry'),
     paldeck:fieldStatus(nonEmpty(pal.paldeck),'game_dump'),
@@ -45,8 +50,8 @@ const rows=registry.rows.map(row=>{
     exclusiveSkills:fieldStatus(Array.isArray(pal.rawRecord?.skill_set),'game_dump'),
     skillFruitEligibility:fieldStatus(true,'palworld_wiki_skill_fruits'),
     partnerSkill:fieldStatus(nonEmpty(partnerSkill.name)&&nonEmpty(partnerSkill.description),partnerSkill.source),
-    partnerEffects:fieldStatus(effects.length>0,pal.partner?.source),
-    partnerRankValues:fieldStatus(rankEffects.length>0,pal.partner?.source),
+    partnerEffects:fieldStatus(effects.length>0,generatedPartner?.source||pal.partner?.source),
+    partnerRankValues:fieldStatus(rankEffects.length>0,generatedPartner?.source||pal.partner?.source),
     condensationEffects:fieldStatus(true,'palworld_wiki_condensation'),
     mountRequirements:fieldStatus(mount.status!=='provisional',mount.source,mount.status)
   };
@@ -86,8 +91,8 @@ const report={
   }
 };
 
-const runtime=`export const PAL_COMBAT_READINESS_SCHEMA=${JSON.stringify(SCHEMA)};\nexport const PAL_COMBAT_READINESS=${JSON.stringify(rows)};\nexport const PAL_COMBAT_READINESS_REPORT=${JSON.stringify(report)};\nconst norm=v=>String(v??'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');\nconst byCanonical=new Map(PAL_COMBAT_READINESS.map(row=>[norm(row.canonicalId),row]));\nconst bySource=new Map();for(const row of PAL_COMBAT_READINESS)for(const id of row.sourceIds||[])bySource.set(norm(id),row);\nexport function readinessForPal(pal){if(!pal)return null;for(const key of [pal.canonicalId,pal.id,pal.internalId,pal.key,pal.name]){const n=norm(key);if(!n)continue;const hit=byCanonical.get(n)||bySource.get(n);if(hit)return hit;}return null;}\nexport function isOptimizerEligiblePal(pal){return readinessForPal(pal)?.optimizerEligible===true;}\n`;
+const runtime=`export const PAL_COMBAT_READINESS_SCHEMA=${JSON.stringify(SCHEMA)};\nexport const PAL_COMBAT_READINESS=${JSON.stringify(rows)};\nexport const PAL_COMBAT_READINESS_REPORT=${JSON.stringify(report)};\nconst norm=v=>String(v??'').trim().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');\nconst byCanonical=new Map(PAL_COMBAT_READINESS.map(row=>[norm(row.canonicalId),row]));\nconst bySource=new Map();for(const row of PAL_COMBAT_READINESS)for(const id of row.sourceIds||[])bySource.set(norm(id),row);\nexport function readinessForPal(pal){if(!pal)return null;for(const key of [pal.canonicalId,pal.id,pal.internalId,pal.key,pal.name]){const n=norm(key);if(!n)continue;const hit=byCanonical.get(n)||bySource.get(n);if(hit)return hit;}return null;}\nexport function isOptimizerEligiblePal(pal){return readinessForPal(pal)?.optimizerEligible===true;}\n`;
 fs.writeFileSync('src/generated-combat-readiness.js',runtime);
 fs.writeFileSync('combat-data-report.json',JSON.stringify(report,null,2));
-console.log(JSON.stringify({...report,details:undefined},null,2));
+console.log(JSON.stringify({...report,details:{missingSkills:report.details.missingSkills,missingPartnerEffects:report.details.missingPartnerEffects,missingMountRequirements:report.details.missingMountRequirements,optimizerExcluded:report.details.optimizerExcluded}},null,2));
 if(report.missingStats>0||report.missingEnglishNames>0)process.exitCode=1;
