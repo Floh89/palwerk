@@ -7,6 +7,7 @@ import '../src/generated-partner-data.js';
 import { performance } from 'node:perf_hooks';
 import { COMBAT_GRAPH } from '../src/knowledge/combat-graph.js';
 import { resolveSkill } from '../src/data/skills.js';
+import { TOWER_PROFILES } from '../src/encounter-overrides.js';
 import { optimizeSkillRotation, rotationOptimizationCacheSize } from '../src/optimizer/skill-rotations.js';
 import { passiveOptimizationCacheSize } from '../src/optimizer/passive-builds.js';
 import { optimizeTeam, TEAM_OBJECTIVES, switchUtility } from '../src/optimizer/engine.js';
@@ -21,6 +22,18 @@ const redundantSwitch={rotation:[{element:'Drache'}],palKnowledge:{elements:['Dr
 const complementarySwitch={rotation:[{element:'Feuer'}],palKnowledge:{elements:['Feuer']},relativeCombatValue:100};
 assert.equal(switchUtility(activeSynthetic,redundantSwitch,encounter,'practical'),0,'Ein Reserve-Pal ohne zusätzliche Phasenabdeckung darf keinen erfundenen Nutzen erhalten');
 assert.ok(switchUtility(activeSynthetic,complementarySwitch,encounter,'practical')>0,'Ein echter Phasen-Counter darf Wechselnutzen erhalten');
+
+const zoe=TOWER_PROFILES.find(x=>x.id==='zoe-grizzbolt-normal');
+const zoeResult=optimizeTeam({activity:'tower',encounter:zoe,constraints:{ownedOnly:false}});
+assert.equal(zoeResult.status,'ok',`Zoe & Grizzbolt muss mit allen fangbaren Pals ein Team liefern: ${zoeResult.reason||''}`);
+assert.ok(zoeResult.teams.every(team=>team.members.length===5),'Jede Zoe-Teamvariante muss fünf reale Partyplätze enthalten');
+const neutralResult=optimizeTeam({activity:'normal_team',encounter:{id:'manual-neutral',name:'Bosskampf',elements:['Neutral']},constraints:{ownedOnly:false}});
+assert.equal(neutralResult.status,'ok',`Manuelles neutrales Bossziel muss ein Team liefern: ${neutralResult.reason||''}`);
+assert.ok(neutralResult.teams.every(team=>team.members.length===5),'Auch ohne vier quantifizierte Supports muss ein reales Fünferteam entstehen');
+for(const team of [...zoeResult.teams,...neutralResult.teams]){
+  assert.equal(team.members.filter(member=>member.estimatedDpsRange).length,1,'Reserveplätze dürfen keinen simultanen Pal-DPS erhalten');
+  for(const member of team.members.slice(1))if(member.supportUtility===0&&member.switchPotential===0)assert.equal(member.relativeCombatValue,0,'Neutraler Reserve-Pal muss 0 zum gleichzeitigen Teamwert beitragen');
+}
 
 const playable=COMBAT_GRAPH.pals.filter(pal=>pal.playable);
 const sample=playable.filter(pal=>pal.skills.length>=3&&pal.skills.filter(skill=>resolveSkill(skill.id)).length>=3).slice(0,32);
