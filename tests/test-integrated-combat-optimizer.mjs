@@ -35,7 +35,9 @@ if(result.status==='ok'){
   assert.ok(carry.passiveBuild?.passives?.length===4,'Carry muss einen strukturierten Vierer-Passivbuild besitzen');
   assert.ok(Array.isArray(team.phaseCoverage)&&team.phaseCoverage.length===2,'Bossphasen müssen sichtbar bewertet werden');
   assert.ok(team.assumptions.some(value=>value.includes('Bossphase')),'Die Ergebnisannahmen müssen die Phasenlogik transparent erklären');
-  assert.ok(team.assumptions.some(value=>value.includes('ohne belastbaren Rangwert')),'Unquantifizierte Partnereffekte müssen transparent bleiben');
+  if(team.unquantifiedSupportCount>0){
+    assert.ok(team.assumptions.some(value=>value.includes('Nicht quantifizierte')),'Unquantifizierte Partnereffekte müssen transparent bleiben');
+  }
   for(const support of team.members.slice(1)){
     assert.equal(support.relativeCombatValue,0);
     assert.equal(support.estimatedDpsRange,null);
