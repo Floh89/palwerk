@@ -15,9 +15,7 @@ for(const passive of PASSIVES.rows){
   assert.ok(passive.id&&passive.sourceId&&passive.name);
   assert.ok(passive.eligibility.pal||passive.eligibility.rarePal,'Ausrüstungs-Passives dürfen nicht in den Pal-Build-Pool gelangen');
   assert.ok(Array.isArray(passive.effects));
-  for(const effect of passive.effects){
-    assert.ok('stat' in effect&&'value' in effect&&'target' in effect&&'status' in effect);
-  }
+  for(const effect of passive.effects)assert.ok('stat' in effect&&'value' in effect&&'target' in effect&&'status' in effect);
 }
 
 const first=PASSIVES.rows[0];
@@ -33,8 +31,9 @@ const synthetic=createPassiveRegistry({
 });
 assert.equal(synthetic.rows.length,4,'Nicht für Pals bestimmte Effekte müssen ausgeschlossen werden');
 
-const candidates=PASSIVES.rows.filter(passive=>passive.effects.some(effect=>effect.stat&&effect.value!=null)).slice(0,8);
-assert.ok(candidates.length>=4);
+const combatStats=new Set(['attack','defense','hp','cooldown','elementDamage','hpRegen']);
+const candidates=PASSIVES.rows.filter(passive=>passive.effects.some(effect=>combatStats.has(effect.stat)&&effect.value!=null)).slice(0,10);
+assert.ok(candidates.length>=4,'Es müssen mindestens vier strukturierte Kampf-Passives vorhanden sein');
 const evaluated=evaluatePassiveBuild(candidates.slice(0,4).map(passive=>passive.id),{goal:'practical'});
 assert.equal(evaluated.status,'ok');
 assert.equal(evaluated.passives.length,4);
