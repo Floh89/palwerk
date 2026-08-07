@@ -51,7 +51,7 @@ assert.ok(simulation.modelDpsRange.low<simulation.modelDpsRange.high);
 const optimized=optimizeSkillRotation({pal,encounter:grassBoss,availableSkillIds:[fire,water,fast,multi],duration:30});
 assert.equal(optimized.status,'ok');
 assert.equal(optimized.winner.skillIds.length,3);
-assert.ok(optimized.whyWinner&&optimized.assumptions.some(value=>value.includes('keine sekundengenaue')));
+assert.ok(optimized.whyWinner&&optimized.assumptions.some(value=>value.toLowerCase().includes('keine sekundengenaue')));
 assert.equal(optimizeSkillRotation({pal,encounter:grassBoss,availableSkillIds:[fire,fast]}).status,'insufficient-data');
 
 const synthetic=createSkillRegistry({
