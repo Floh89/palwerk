@@ -13,14 +13,24 @@ assert.ok(report.withPower>0&&report.withCooldown>0,'Power und Cooldown müssen 
 
 for(const skill of SKILLS.rows){
   assert.ok(skill.id&&skill.sourceId&&skill.name);
-  for(const key of ['rawPower','cooldown','animation','projectileTime','multiHit','hitRate','aoe','range','channeling']){
-    assert.ok(skill[key]&&'value' in skill[key]&&'status' in skill[key],`Skillfeld ${key} braucht Wert und Qualität`);
-  }
+  for(const key of ['rawPower','cooldown','animation','projectileTime','multiHit','hitRate','aoe','range','channeling'])assert.ok(skill[key]&&'value' in skill[key]&&'status' in skill[key],`Skillfeld ${key} braucht Wert und Qualität`);
 }
 const first=SKILLS.rows.find(skill=>skill.rawPower.value>0&&skill.cooldown.value!=null);
 assert.ok(first);
 assert.equal(resolveSkill(first.id)?.sourceId,first.sourceId);
 assert.equal(resolveSkill(first.sourceId)?.id,first.id);
+
+// Regression: fehlende praktische Felder dürfen niemals über Number(null) zu 0 werden.
+const missingRegistry=createSkillRegistry({OnlyKnownDamage:{power:100,cool_time:5,element:'Fire'}});
+const missingSkill=missingRegistry.rows[0];
+for(const key of ['animation','projectileTime','multiHit','hitRate','aoe','channeling']){
+  assert.equal(missingSkill[key].value,null,`${key}: fehlender Quellwert muss null bleiben`);
+  assert.equal(missingSkill[key].status,'missing',`${key}: fehlender Quellwert muss als missing markiert sein`);
+}
+const missingEvaluation=evaluateSkill(missingSkill,{pal:{elements:['Feuer']},encounter:{elements:['Gras']}});
+assert.equal(missingEvaluation.dataQuality,'modelled');
+assert.ok(missingEvaluation.modelDps>0,'Fehlende Trefferquote darf einen Skill nicht zu 0 Schaden machen');
+assert.ok(missingEvaluation.assumptions.some(text=>text.includes('Trefferquote 72')));
 
 const q=(value,status='verified')=>({value,status});
 const fire={id:'fire',name:'Fire',element:'Feuer',rawPower:q(100),cooldown:q(5),animation:q(1),projectileTime:q(0),multiHit:q(1),hitRate:q(1),aoe:q(0),range:q(null,'missing'),channeling:q(0)};
@@ -54,10 +64,6 @@ assert.equal(optimized.winner.skillIds.length,3);
 assert.ok(optimized.whyWinner&&optimized.assumptions.some(value=>value.toLowerCase().includes('keine sekundengenaue')));
 assert.equal(optimizeSkillRotation({pal,encounter:grassBoss,availableSkillIds:[fire,fast]}).status,'insufficient-data');
 
-const synthetic=createSkillRegistry({
-  Test:{power:100,cool_time:5,element:'Fire'},
-  'EPalWazaID::Test':{power:200,cool_time:5,element:'Fire'}
-});
+const synthetic=createSkillRegistry({Test:{power:100,cool_time:5,element:'Fire'},'EPalWazaID::Test':{power:200,cool_time:5,element:'Fire'}});
 assert.equal(synthetic.duplicates.length,1,'Identische normalisierte Skill-IDs müssen als Duplikat sichtbar sein');
-
 console.log('Skill-Daten- und Rotationstests bestanden.');
