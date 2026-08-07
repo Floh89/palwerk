@@ -2,7 +2,7 @@
 // Primary numeric source: palworld.tools extraction from Palworld 1.0 build 24088745 (2026-07-13).
 // Cross-check: palworld.wiki.gg confirms the type chart and STAB, but currently documents conflicting 2.0/0.5 matchup multipliers.
 
-export const ELEMENT_MODEL_VERSION='1.0.0';
+export const ELEMENT_MODEL_VERSION='1.0.1';
 export const ELEMENT_GAME_VERSION='1.0';
 
 export const ELEMENT_PROVENANCE=Object.freeze({
@@ -30,12 +30,7 @@ export const ELEMENT_PROVENANCE=Object.freeze({
   })
 });
 
-export const ELEMENT_MULTIPLIERS=Object.freeze({
-  strong:1.5,
-  resisted:2/3,
-  neutral:1,
-  stab:1.2
-});
+export const ELEMENT_MULTIPLIERS=Object.freeze({strong:1.5,resisted:2/3,neutral:1,stab:1.2});
 
 export const ELEMENT_STRONG_AGAINST=Object.freeze({
   Neutral:Object.freeze([]),
@@ -50,21 +45,12 @@ export const ELEMENT_STRONG_AGAINST=Object.freeze({
 });
 
 const ELEMENT_ALIASES=Object.freeze({
-  Normal:'Neutral',Neutral:'Neutral',
-  Fire:'Feuer',Feuer:'Feuer',
-  Water:'Wasser',Wasser:'Wasser',
-  Grass:'Gras',Leaf:'Gras',Gras:'Gras',
-  Electric:'Elektro',Electricity:'Elektro',Elektro:'Elektro',
-  Ice:'Eis',Eis:'Eis',
-  Ground:'Erde',Earth:'Erde',Erde:'Erde',
-  Dark:'Schatten',Schatten:'Schatten',
-  Dragon:'Drache',Drache:'Drache'
+  Normal:'Neutral',Neutral:'Neutral',Fire:'Feuer',Feuer:'Feuer',Water:'Wasser',Wasser:'Wasser',
+  Grass:'Gras',Leaf:'Gras',Gras:'Gras',Electric:'Elektro',Electricity:'Elektro',Elektro:'Elektro',
+  Ice:'Eis',Eis:'Eis',Ground:'Erde',Earth:'Erde',Erde:'Erde',Dark:'Schatten',Schatten:'Schatten',Dragon:'Drache',Drache:'Drache'
 });
 
-export function normalizeCombatElement(value){
-  const raw=String(value??'').trim();
-  return ELEMENT_ALIASES[raw]||raw||'Neutral';
-}
+export function normalizeCombatElement(value){const raw=String(value??'').trim();return ELEMENT_ALIASES[raw]||raw||'Neutral';}
 
 export function singleTypeEffectiveness(attackElement,defenseElement){
   const attack=normalizeCombatElement(attackElement),defense=normalizeCombatElement(defenseElement);
@@ -74,13 +60,14 @@ export function singleTypeEffectiveness(attackElement,defenseElement){
 }
 
 export function elementEffectiveness(attackElement,defensiveElements=[]){
-  const targets=(Array.isArray(defensiveElements)?defensiveElements:[defensiveElements]).map(normalizeCombatElement).filter(Boolean);
+  const raw=Array.isArray(defensiveElements)?defensiveElements:[defensiveElements];
+  const targets=[...new Set(raw.map(normalizeCombatElement).filter(Boolean))];
   if(!targets.length)return ELEMENT_MULTIPLIERS.neutral;
   return targets.reduce((multiplier,target)=>multiplier*singleTypeEffectiveness(attackElement,target),1);
 }
 
 export function stabMultiplier(skillElement,palElements=[]){
-  const skill=normalizeCombatElement(skillElement),elements=(Array.isArray(palElements)?palElements:[palElements]).map(normalizeCombatElement);
+  const skill=normalizeCombatElement(skillElement),elements=[...new Set((Array.isArray(palElements)?palElements:[palElements]).map(normalizeCombatElement))];
   return elements.includes(skill)?ELEMENT_MULTIPLIERS.stab:1;
 }
 
