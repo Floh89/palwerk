@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import { PAL_CATALOG as STATIC_PAL_CATALOG } from '../src/catalog.js';
 
 const read=name=>JSON.parse(fs.readFileSync(`data/upstream/${name}`,'utf8'));
 const names=read('pal-names.json');
@@ -14,7 +13,7 @@ const dePals=read('pals-de.json');
 const deActive=read('active-skills-de.json');
 const dePassive=read('passive-skills-de.json');
 
-const SCHEMA_VERSION='palwerk-core-1.0.1';
+const SCHEMA_VERSION='palwerk-core-1.0.0';
 const deElement={Normal:'Neutral',Neutral:'Neutral',Fire:'Feuer',Water:'Wasser',Grass:'Gras',Electric:'Elektro',Ice:'Eis',Ground:'Erde',Dark:'Schatten',Dragon:'Drache'};
 const workMap={EmitFlame:'kindling',Watering:'watering',Seeding:'planting',GenerateElectricity:'generating',Handcraft:'handiwork',Collection:'gathering',Deforest:'lumbering',Mining:'mining',OilExtraction:'oilExtraction',ProductMedicine:'medicine',Cool:'cooling',Transport:'transporting',MonsterFarm:'farming'};
 const suffixes=Object.fromEntries(Object.entries(names.suffixes||{}).map(([k,v])=>[k.toLowerCase(),v]));
@@ -24,7 +23,6 @@ const normalize=value=>String(value??'').trim().toLowerCase().replace(/[^a-z0-9Ã
 const slug=value=>String(value).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 const forbiddenPrefixes=['gym_','predator_','raid_','summon_','police_','quest_','boss_','arena_','npc_','human_'];
 const forbiddenParts=['_oilrig','_tower','_quest_','_avatar','_servant','_max','_enemy','_friend','_invader','_summon','_boss'];
-const staticDeckByName=new Map(STATIC_PAL_CATALOG.filter(row=>row?.name&&row?.paldeck).map(row=>[normalize(row.name),String(row.paldeck)]));
 
 function isPlayableId(rawId,record={}){
   const id=String(rawId).toLowerCase();
@@ -69,8 +67,7 @@ function baseRow(id,record){
     schemaVersion:SCHEMA_VERSION,
     key:`canonical-${slug(id)}`,
     internalId:id,
-    paldeck:staticDeckByName.get(normalize(name))||null,
-    sourcePalDeckIndex:Number(record?.pal_deck_index)>=0?Number(record.pal_deck_index):null,
+    paldeck:Number(record?.pal_deck_index)>=0?String(record.pal_deck_index).padStart(3,'0'):null,
     name,
     description:localizedDescription(id),
     element:elements.map(x=>deElement[x]||x).join('/'),
