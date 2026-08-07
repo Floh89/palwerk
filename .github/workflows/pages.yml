@@ -37,28 +37,23 @@ jobs:
           curl -fL --retry 3 "$savepal/passive_skills.json" -o data/upstream/passive-skills-full.json
           curl -fL --retry 3 "$savepal/bosses.json" -o data/upstream/bosses.json
           curl -fL --retry 3 "$savepal/l10n/de/pals.json" -o data/upstream/pals-de.json
+          curl -fL --retry 3 "$savepal/l10n/en/pals.json" -o data/upstream/pals-en.json
           curl -fL --retry 3 "$savepal/l10n/de/active_skills.json" -o data/upstream/active-skills-de.json
           curl -fL --retry 3 "$savepal/l10n/de/passive_skills.json" -o data/upstream/passive-skills-de.json
           curl -fL --retry 3 "https://palworld.wiki.gg/wiki/Module:PartnerSkills/data.json?action=raw" -o data/upstream/partner-skills.json || echo '{}' > data/upstream/partner-skills.json
 
           # Cargo caps each response at 500 rows even when a larger limit is requested.
-          # Fetch all pages so late-alphabet partner skills (for example Sparkit) retain rank data.
+          # Fetch all pages so late-alphabet partner skills retain rank data.
           rm -f /tmp/partner-scales-*.json
           offset=0
           while [ "$offset" -lt 5000 ]; do
             page="/tmp/partner-scales-${offset}.json"
             url="https://palworld.wiki.gg/api.php?action=cargoquery&format=json&limit=500&offset=${offset}&tables=PalPartnerSkillScale&fields=partnerSkill,effectType,target,level,effectValue"
-            if ! curl -fL --retry 3 "$url" -o "$page"; then
-              break
-            fi
+            if ! curl -fL --retry 3 "$url" -o "$page"; then break; fi
             count=$(python3 -c "import json; print(len(json.load(open('$page')).get('cargoquery', [])))")
-            if [ "$count" -eq 0 ]; then
-              break
-            fi
+            if [ "$count" -eq 0 ]; then break; fi
             offset=$((offset + 500))
-            if [ "$count" -lt 500 ]; then
-              break
-            fi
+            if [ "$count" -lt 500 ]; then break; fi
           done
           python3 - <<'PY'
           import glob, json
@@ -77,6 +72,7 @@ jobs:
         run: |
           node scripts/build-core-data.mjs
           node scripts/build-partner-data.mjs
+          node scripts/build-combat-readiness.mjs
       - name: Test optimizer end-to-end logic
         run: npm run test:optimizer
       - name: Bundle Pal images
