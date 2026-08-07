@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { PARTNER_DATA } from '../src/generated-partner-data.js';
 import { COMBAT_GRAPH, DATA_STATUSES, ELEMENT_COUNTER, createCombatKnowledgeGraph, encounterPhases, getPalKnowledge, graphQualitySummary, normalizeInternalId } from '../src/knowledge/combat-graph.js';
 
-assert.equal(COMBAT_GRAPH.schemaVersion,'1.6.1');
+assert.equal(COMBAT_GRAPH.schemaVersion,'1.6.2');
 assert.equal(COMBAT_GRAPH.createdFrom,'PAL_CATALOG_PLUS_PARTNER_DATA_PLUS_ROLE_READINESS');
 assert.ok(COMBAT_GRAPH.pals.length>200,'Der Graph muss den vollständigen kanonischen Pal-Katalog abbilden');
 assert.equal(COMBAT_GRAPH.registry.duplicateDexKeys.length,0,'Der produktive Graph darf keine doppelten dexKeys enthalten');
@@ -26,7 +26,7 @@ for(const pal of COMBAT_GRAPH.pals){
   }
   for(const passive of pal.fixedPassives)assert.ok(passive.id&&passive.sourceId&&Array.isArray(passive.effects),'Feste Passives müssen aus der kanonischen Passive-Datenquelle stammen');
   for(const effect of pal.partner.effects){
-    for(const key of ['activation','stackingGroup','stackable','target','element','valuesByRank','appliesTo','conditions','source','verifiedAt','confidence','status'])assert.ok(key in effect,`Partnereffekt ohne ${key}`);
+    for(const key of ['id','palId','name','description','activation','stackingRule','stackingGroup','stackable','target','element','valuesByRank','appliesTo','conditions','source','verifiedAt','confidence','status'])assert.ok(key in effect,`Partnereffekt ohne ${key}`);
     assert.ok(DATA_STATUSES.includes(effect.status));
   }
 }
