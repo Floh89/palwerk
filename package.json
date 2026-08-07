@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "test": "npm run test:optimizer",
-    "test:optimizer": "node scripts/test-phase1-architecture.mjs && node tests/test-element-mechanics.mjs && node tests/test-stat-formula.mjs && node scripts/test-phase2-models.mjs && node tests/test-source-priority.mjs && node tests/test-combat-readiness.mjs && node tests/test-phase3-partner-effects.mjs && node tests/test-partner-skill-validation.mjs && node tests/test-phase4-synergy.mjs && node tests/test-phase4-personal-state.mjs && node tests/test-combat-knowledge-graph.mjs && node tests/test-canonical-pal-data.mjs && node tests/test-passive-data.mjs && node tests/test-skill-rotations.mjs && node tests/test-integrated-combat-optimizer.mjs && node tests/test-team-objectives.mjs"
+    "test:optimizer": "node scripts/test-phase1-architecture.mjs && node tests/test-element-mechanics.mjs && node tests/test-stat-formula.mjs && node scripts/test-phase2-models.mjs && node tests/test-source-priority.mjs && node tests/test-combat-readiness.mjs && node tests/test-phase3-partner-effects.mjs && node tests/test-partner-skill-validation.mjs && node tests/test-phase6-stacking.mjs && node tests/test-phase4-synergy.mjs && node tests/test-phase4-personal-state.mjs && node tests/test-combat-knowledge-graph.mjs && node tests/test-canonical-pal-data.mjs && node tests/test-passive-data.mjs && node tests/test-skill-rotations.mjs && node tests/test-integrated-combat-optimizer.mjs && node tests/test-team-objectives.mjs"
   }
 }
