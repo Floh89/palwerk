@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import '../src/catalog-pack-5.js';
 import '../src/catalog-pack-6.js';
 import '../src/catalog-pack-7.js';
@@ -26,14 +27,27 @@ assert.ok(switchUtility(activeSynthetic,complementarySwitch,encounter,'practical
 const zoe=TOWER_PROFILES.find(x=>x.id==='zoe-grizzbolt-normal');
 const zoeResult=optimizeTeam({activity:'tower',encounter:zoe,constraints:{ownedOnly:false}});
 assert.equal(zoeResult.status,'ok',`Zoe & Grizzbolt muss mit allen fangbaren Pals ein Team liefern: ${zoeResult.reason||''}`);
+assert.equal(zoeResult.teams[0].objective,'practical','Standardteam muss das praktische Carry-Support-Team sein');
 assert.ok(zoeResult.teams.every(team=>team.members.length===5),'Jede Zoe-Teamvariante muss fünf reale Partyplätze enthalten');
+assert.ok(zoeResult.teams[0].members.slice(1).some(member=>member.supportReasons?.length),'Das praktische Team braucht nachvollziehbare Support-Begründungen');
+
+const lilyHard=TOWER_PROFILES.find(x=>x.id==='lily-lyleen-hard');
+const lilyResult=optimizeTeam({activity:'tower',encounter:lilyHard,constraints:{ownedOnly:false}});
+assert.equal(lilyResult.status,'ok',`Lily & Lyleen Schwer muss ein Team liefern: ${lilyResult.reason||''}`);
+assert.equal(lilyResult.teams[0].objective,'practical');
+assert.equal(lilyResult.teams[0].members.length,5);
+assert.equal(lilyResult.teams[0].members.filter(member=>member.estimatedDpsRange).length,1,'Auch Lily Schwer darf nur einen aktiven Pal-DPS haben');
+
 const neutralResult=optimizeTeam({activity:'normal_team',encounter:{id:'manual-neutral',name:'Bosskampf',elements:['Neutral']},constraints:{ownedOnly:false}});
 assert.equal(neutralResult.status,'ok',`Manuelles neutrales Bossziel muss ein Team liefern: ${neutralResult.reason||''}`);
-assert.ok(neutralResult.teams.every(team=>team.members.length===5),'Auch ohne vier quantifizierte Supports muss ein reales Fünferteam entstehen');
-for(const team of [...zoeResult.teams,...neutralResult.teams]){
-  assert.equal(team.members.filter(member=>member.estimatedDpsRange).length,1,'Reserveplätze dürfen keinen simultanen Pal-DPS erhalten');
-  for(const member of team.members.slice(1))if(member.supportUtility===0&&member.switchPotential===0)assert.equal(member.relativeCombatValue,0,'Neutraler Reserve-Pal muss 0 zum gleichzeitigen Teamwert beitragen');
+assert.ok(neutralResult.teams.every(team=>team.members.length===5),'Auch bei lückenhaften Supportdaten muss ein reales Fünferteam entstehen');
+for(const team of [...zoeResult.teams,...lilyResult.teams,...neutralResult.teams]){
+  assert.equal(team.members.filter(member=>member.estimatedDpsRange).length,1,'Supportplätze dürfen keinen simultanen Pal-DPS erhalten');
 }
+
+const uiSource=fs.readFileSync(new URL('../src/optimizer/ui.js',import.meta.url),'utf8');
+assert.ok(uiSource.includes("find(item=>item.objective==='practical')"),'UI muss das praktische Team standardmäßig anzeigen');
+assert.ok(uiSource.includes('1 Haupt-Pal + 4 Supportplätze'),'UI muss das Carry-Support-Modell sichtbar machen');
 
 const playable=COMBAT_GRAPH.pals.filter(pal=>pal.playable);
 const sample=playable.filter(pal=>pal.skills.length>=3&&pal.skills.filter(skill=>resolveSkill(skill.id)).length>=3).slice(0,32);
@@ -58,14 +72,14 @@ assert.ok(passiveOptimizationCacheSize()>0,'Passive-Build-Suchen müssen wiederv
 assert.ok(warmMs<=coldMs*1.35+25,`Warmer Optimizerlauf darf nicht deutlich langsamer werden (${coldMs.toFixed(0)} ms -> ${warmMs.toFixed(0)} ms)`);
 
 const ids=result.teams.map(team=>team.objective);
-assert.deepEqual(ids,['element','practical','safest','speedrun']);
+assert.deepEqual(ids,['practical','element','safest','speedrun']);
 assert.equal(new Set(ids).size,4,'Jede Teamvariante braucht eine eigene Zielfunktion');
 for(const team of result.teams){
   assert.equal(team.members.length,5);
   assert.equal(team.members.filter(member=>member.estimatedDpsRange).length,1,'Nur der aktive Haupt-Pal darf eigenen Pal-DPS tragen');
   assert.ok(team.assumptions.some(text=>text.includes('Eigene Zielfunktion')),'Zielfunktion muss im Ergebnis nachvollziehbar sein');
-  assert.ok(team.assumptions.some(text=>text.includes('ohne belastbaren Rangwert')),'Nicht quantifizierte Supports müssen transparent ausgewiesen werden');
   assert.ok(Number.isFinite(team.objectiveScore));
+  assert.ok(team.supportModel&&team.supportModel.multiplier>=1,'Team muss ein explizites Carry-Support-Modell besitzen');
   for(const applied of team.stacking.applied){
     if(applied.quantified===false)assert.equal(applied.value,null,'Unquantifizierte Partnereffekte dürfen keinen erfundenen Zahlenwert tragen');
   }
