@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { PARTNER_DATA } from '../src/generated-partner-data.js';
 import { COMBAT_GRAPH, DATA_STATUSES, ELEMENT_COUNTER, createCombatKnowledgeGraph, encounterPhases, getPalKnowledge, graphQualitySummary, normalizeInternalId } from '../src/knowledge/combat-graph.js';
 
 assert.equal(COMBAT_GRAPH.schemaVersion,'1.4.1');
@@ -32,10 +33,15 @@ assert.equal(orserk.canonicalId,'orserk');
 assert.equal(getPalKnowledge('oserK')?.dexKey,orserk.dexKey,'Historische Schreibweise muss auf dieselbe Form zeigen');
 assert.ok(orserk.elements.includes('Elektro'));
 
+const sourceSparkit=PARTNER_DATA.find(row=>Number(String(row.paldeck).match(/\d+/)?.[0])===7);
+assert.ok(sourceSparkit,`PARTNER_DATA muss Sparkit #7 enthalten. Erste Nummern: ${PARTNER_DATA.slice(0,12).map(row=>row.paldeck).join(', ')}`);
+const sourceSparkitBuff=sourceSparkit.effects?.find(effect=>effect.type==='pal_element_attack'&&effect.activation==='in_party'&&effect.element==='Elektro');
+assert.ok(sourceSparkitBuff,`Sparkit #7 hat in PARTNER_DATA keinen erwarteten Elektro-In-Party-Buff. Quelle: ${JSON.stringify({palName:sourceSparkit.palName,paldeck:sourceSparkit.paldeck,skillName:sourceSparkit.skillName,description:sourceSparkit.description,effects:sourceSparkit.effects})}`);
+
 const sparkit=getPalKnowledge('sparkit');
 assert.ok(sparkit,'Sparkit muss im Combat Graph vorhanden sein');
 const sparkitBuff=sparkit.partner.effects.find(effect=>effect.type==='pal_element_attack'&&effect.activation==='in_party'&&effect.element==='Elektro');
-assert.ok(sparkitBuff,'Sparkits Elektro-In-Party-Buff muss aus den Partnerdaten im Combat Graph ankommen');
+assert.ok(sparkitBuff,`Sparkits Elektro-In-Party-Buff muss aus den Partnerdaten im Combat Graph ankommen. Graph: ${JSON.stringify({dexNumber:sparkit.dexNumber,variantId:sparkit.variantId,displayNumber:sparkit.displayNumber,effects:sparkit.partner.effects})}`);
 assert.ok(Array.isArray(sparkitBuff.valuesByRank)&&sparkitBuff.valuesByRank.length===5,'Sparkits Rangwerte müssen strukturiert vorliegen');
 
 const phases=encounterPhases({elements:['Dark'],phases:[{id:'dark',hpShare:.6,elements:['Dark']},{id:'ice',hpShare:.4,elements:['Ice'],healing:true}]});
