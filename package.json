@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "test": "npm run test:optimizer",
-    "test:optimizer": "node scripts/test-phase1-architecture.mjs && node scripts/test-phase2-models.mjs && node tests/test-phase3-partner-effects.mjs && node tests/test-phase4-synergy.mjs && node tests/test-phase4-personal-state.mjs && node tests/test-combat-knowledge-graph.mjs && node tests/test-canonical-pal-data.mjs"
+    "test:optimizer": "node scripts/test-phase1-architecture.mjs && node scripts/test-phase2-models.mjs && node tests/test-phase3-partner-effects.mjs && node tests/test-phase4-synergy.mjs && node tests/test-phase4-personal-state.mjs && node tests/test-combat-knowledge-graph.mjs && node tests/test-canonical-pal-data.mjs && node tests/test-passive-data.mjs"
   }
 }
