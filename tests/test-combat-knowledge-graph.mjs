@@ -18,9 +18,7 @@ for(const pal of COMBAT_GRAPH.pals){
       assert.ok(DATA_STATUSES.includes(skill[key].status));
     }
   }
-  for(const passive of pal.fixedPassives){
-    assert.ok(passive.id&&passive.sourceId&&Array.isArray(passive.effects),'Feste Passives müssen aus der kanonischen Passive-Datenquelle stammen');
-  }
+  for(const passive of pal.fixedPassives)assert.ok(passive.id&&passive.sourceId&&Array.isArray(passive.effects),'Feste Passives müssen aus der kanonischen Passive-Datenquelle stammen');
   for(const effect of pal.partner.effects){
     for(const key of ['activation','stackingGroup','stackable','target','element','valuesByRank','appliesTo','conditions','source','verifiedAt','confidence','status'])assert.ok(key in effect,`Partnereffekt ohne ${key}`);
     assert.ok(DATA_STATUSES.includes(effect.status));
@@ -38,6 +36,19 @@ assert.equal(phases.length,2);
 assert.equal(phases[0].elements[0],'Schatten');
 assert.equal(phases[1].elements[0],'Eis');
 assert.equal(phases.reduce((sum,phase)=>sum+phase.hpShare,0),1);
+
+// Regression: fehlende numerische Werte dürfen im Combat Graph nicht als echte 0 erscheinen.
+const missingGraph=createCombatKnowledgeGraph([{
+  key:'missing-metric-pal',internalId:'MissingMetricPal',paldeck:'999',name:'Missing Metric Pal',element:'Feuer',work:{},stats:{hp:100,attack:100,defense:100},
+  skills:[{id:'SyntheticSkill',name:'Synthetic Skill',level:1,data:{power:100,cool_time:5,element:'Fire'}}],fixedPassives:[],partner:{name:'',effects:[]},verified:true,canonical:true
+}]);
+const missingNode=missingGraph.pals[0].skills[0];
+assert.equal(missingNode.animation.value,null,'Fehlende Animation muss null bleiben');
+assert.equal(missingNode.animation.status,'missing');
+assert.equal(missingNode.hitRate.value,null,'Fehlende Trefferquote muss null bleiben');
+assert.equal(missingNode.hitRate.status,'missing');
+assert.equal(missingNode.multiHit.value,null,'Fehlende Mehrfachtreffer müssen null bleiben');
+assert.equal(missingNode.aoe.value,null,'Fehlende AoE muss null bleiben');
 
 const summary=graphQualitySummary();
 assert.ok(summary.playablePals>0);
