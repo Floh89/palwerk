@@ -30,7 +30,14 @@ for(const name of ['Menasting','Menasting Terra']){
   const defense=oneEffect(row,'player_defense');
   assert.deepEqual(defense.valuesByRank,[7,8,10,12,14],`${name}: Player-Defense-Rangwerte falsch`);
   assert.equal(defense.target,'player');
-  assert.ok(String(drop.source).includes(':cargo')&&String(defense.source).includes(':cargo'),`${name}: strukturierte Cargo-Werte müssen Vorrang haben`);
+  if(name==='Menasting'){
+    assert.ok(String(drop.source).includes(':cargo')&&String(defense.source).includes(':cargo'),'Menasting: strukturierte Cargo-Werte müssen Vorrang haben');
+  }else{
+    assert.match(String(drop.source),/palworld\.wiki\.gg\/wiki\/Menasting_Terra/,'Menasting Terra: verifizierter Wiki-Override muss als Quelle erhalten bleiben');
+    assert.match(String(defense.source),/palworld\.wiki\.gg\/wiki\/Menasting_Terra/,'Menasting Terra: Defense muss aus demselben verifizierten Override stammen');
+    assert.equal(drop.status,'verified');
+    assert.equal(defense.status,'verified');
+  }
 }
 
 const sparkit=rowByName('Sparkit');
