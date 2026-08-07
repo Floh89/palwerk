@@ -11,31 +11,33 @@ close(ELEMENT_MULTIPLIERS.resisted,2/3,'Resisted multiplier');
 close(ELEMENT_MULTIPLIERS.neutral,1,'Neutral multiplier');
 close(ELEMENT_MULTIPLIERS.stab,1.2,'STAB multiplier');
 
-// Required current type-chart golden masters.
-close(elementEffectiveness('Wasser',['Feuer']),1.5,'Water vs Fire');
-close(elementEffectiveness('Feuer',['Gras']),1.5,'Fire vs Grass');
-close(elementEffectiveness('Erde',['Elektro']),1.5,'Ground vs Electric');
-close(elementEffectiveness('Drache',['Schatten']),1.5,'Dragon vs Dark');
-close(elementEffectiveness('Eis',['Drache']),1.5,'Ice vs Dragon');
-close(elementEffectiveness('Schatten',['Neutral']),1.5,'Dark vs Neutral');
+const cases=[
+  {name:'Water vs Fire',attack:'Wasser',strong:'Feuer',resisted:'Elektro',neutral:'Gras'},
+  {name:'Fire vs Grass',attack:'Feuer',strong:'Gras',resisted:'Wasser',neutral:'Drache'},
+  {name:'Ground vs Electric',attack:'Erde',strong:'Elektro',resisted:'Gras',neutral:'Wasser'},
+  {name:'Dragon vs Dark',attack:'Drache',strong:'Schatten',resisted:'Eis',neutral:'Feuer'},
+  {name:'Ice vs Dragon',attack:'Eis',strong:'Drache',resisted:'Feuer',neutral:'Wasser'},
+  {name:'Dark vs Neutral',attack:'Schatten',strong:'Neutral',resisted:'Drache',neutral:'Wasser'}
+];
 
-// Resisted and neutral interactions.
-close(singleTypeEffectiveness('Feuer','Wasser'),2/3,'Fire is resisted by Water');
-close(singleTypeEffectiveness('Wasser','Elektro'),2/3,'Water is resisted by Electric');
-close(singleTypeEffectiveness('Wasser','Gras'),1,'Water vs Grass is neutral in current chart');
-close(singleTypeEffectiveness('Neutral','Feuer'),1,'Neutral vs Fire is neutral');
+for(const row of cases){
+  close(elementEffectiveness(row.attack,[row.strong]),1.5,`${row.name} strong`);
+  close(elementEffectiveness(row.attack,[row.resisted]),2/3,`${row.name} resisted`);
+  close(elementEffectiveness(row.attack,[row.neutral]),1,`${row.name} neutral`);
+  close(stabMultiplier(row.attack,[row.attack]),1.2,`${row.name} STAB`);
+  close(stabMultiplier(row.attack,[row.neutral]),1,`${row.name} no STAB`);
+  close(offensiveMultiplier({skillElement:row.attack,palElements:[row.attack],defensiveElements:[row.strong]}).total,1.8,`${row.name} strong + STAB`);
+  close(offensiveMultiplier({skillElement:row.attack,palElements:[row.neutral],defensiveElements:[row.strong]}).total,1.5,`${row.name} strong without STAB`);
+}
 
-// Dual-element interactions multiply per defensive type.
-close(elementEffectiveness('Wasser',['Feuer','Feuer']),2.25,'Two weaknesses multiply to 2.25');
+// Dual-element interactions use unique defensive elements only.
+close(elementEffectiveness('Feuer',['Gras','Eis']),2.25,'Fire vs Grass/Ice dual weakness');
 close(elementEffectiveness('Gras',['Erde','Feuer']),1,'One strong and one resisted interaction cancel');
+close(elementEffectiveness('Wasser',['Feuer','Feuer']),1.5,'Duplicate defensive element must not be counted twice');
 
-// STAB is independent from elemental effectiveness.
-close(stabMultiplier('Feuer',['Feuer']),1.2,'Fire STAB');
-close(stabMultiplier('Feuer',['Wasser']),1,'No Fire STAB on Water pal');
-const strongWithStab=offensiveMultiplier({skillElement:'Wasser',palElements:['Wasser'],defensiveElements:['Feuer']});
-close(strongWithStab.element,1.5,'Strong component');
-close(strongWithStab.stab,1.2,'STAB component');
-close(strongWithStab.total,1.8,'Strong + STAB total');
+// Aliases must resolve identically.
+close(elementEffectiveness('Water',['Fire']),1.5,'English aliases');
+close(stabMultiplier('Dark',['Dark']),1.2,'English STAB alias');
 
 // Integration: skill evaluation must use the same central formula, not a separate boss-fit heuristic.
 const q=(value,status='verified')=>({value,status});
@@ -43,9 +45,11 @@ const waterSkill={id:'phase1-water',name:'Phase 1 Water',element:'Wasser',rawPow
 const strong=evaluateSkill(waterSkill,{pal:{elements:['Wasser']},encounter:{elements:['Feuer']}});
 const resisted=evaluateSkill(waterSkill,{pal:{elements:['Wasser']},encounter:{elements:['Elektro']}});
 const neutral=evaluateSkill(waterSkill,{pal:{elements:['Wasser']},encounter:{elements:['Gras']}});
+const noStab=evaluateSkill(waterSkill,{pal:{elements:['Feuer']},encounter:{elements:['Feuer']}});
 close(strong.elementMultiplier,1.5,'Skill integration strong');
 close(resisted.elementMultiplier,2/3,'Skill integration resisted');
 close(neutral.elementMultiplier,1,'Skill integration neutral');
 close(strong.stab,1.2,'Skill integration STAB');
+close(noStab.stab,1,'Skill integration no STAB');
 
 console.log('Phase-1-Elementmechanik-Tests bestanden.');
