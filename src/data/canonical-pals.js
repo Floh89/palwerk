@@ -16,7 +16,7 @@ const parseDex = value => {
 const BLOCKED = /astralym|amaterasuwolf|quest|avatar|enemy|friend|summon|tower|raid_|npc|human/i;
 const CANONICAL_ALIASES = Object.freeze({ thunderdragonman: 'orserk', oserk: 'orserk' });
 
-export const CANONICAL_PAL_SCHEMA = '1.2.0';
+export const CANONICAL_PAL_SCHEMA = '1.3.0';
 
 export function isPlayableCatalogPal(pal) {
   return Boolean(
@@ -42,10 +42,9 @@ function canonicalIdFor(pal) {
 
 function variantIdFor(pal, canonicalId, dexSuffix) {
   if (dexSuffix) return dexSuffix;
-  const technical = slug(technicalId(pal));
-  if (!technical || technical === canonicalId || CANONICAL_ALIASES[technical] === canonicalId) return 'base';
-  const stripped = technical.replace(new RegExp(`^${canonicalId}-?`), '');
-  return stripped || technical;
+  const explicit = text(pal?.variantId);
+  if (explicit) return slug(explicit);
+  return 'base';
 }
 
 function sourceIds(pal) {
