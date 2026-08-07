@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { COMBAT_GRAPH, DATA_STATUSES, ELEMENT_COUNTER, createCombatKnowledgeGraph, encounterPhases, getPalKnowledge, graphQualitySummary, normalizeInternalId } from '../src/knowledge/combat-graph.js';
 
-assert.equal(COMBAT_GRAPH.schemaVersion,'1.2.0');
+assert.equal(COMBAT_GRAPH.schemaVersion,'1.3.0');
+assert.equal(COMBAT_GRAPH.createdFrom,'ENRICHED_PAL_CATALOG');
 assert.ok(COMBAT_GRAPH.pals.length>200,'Der Graph muss den vollständigen Pal-Katalog abbilden');
 assert.equal(COMBAT_GRAPH.registry.duplicateDexKeys.length,0,'Der produktive Graph darf keine doppelten dexKeys enthalten');
 assert.equal(normalizeInternalId('EPalWazaID::FireBlast'),'fireblast');
@@ -37,7 +38,6 @@ assert.equal(phases[0].elements[0],'Schatten');
 assert.equal(phases[1].elements[0],'Eis');
 assert.equal(phases.reduce((sum,phase)=>sum+phase.hpShare,0),1);
 
-// Regression: fehlende numerische Werte dürfen im Combat Graph nicht als echte 0 erscheinen.
 const missingGraph=createCombatKnowledgeGraph([{
   key:'missing-metric-pal',internalId:'MissingMetricPal',paldeck:'999',name:'Missing Metric Pal',element:'Feuer',work:{},stats:{hp:100,attack:100,defense:100},
   skills:[{id:'SyntheticSkill',name:'Synthetic Skill',level:1,data:{power:100,cool_time:5,element:'Fire'}}],fixedPassives:[],partner:{name:'',effects:[]},verified:true,canonical:true
@@ -54,6 +54,7 @@ const summary=graphQualitySummary();
 assert.ok(summary.playablePals>0);
 assert.ok(summary.skillsWithPower>0);
 assert.ok(summary.partnerEffects>0);
+assert.ok(summary.inPartyCombatEffects>=10,'Angereicherte kampfrelevante In-Party-Effekte müssen den Combat Graph erreichen');
 assert.equal(summary.duplicateDexKeys,0);
 assert.equal(summary.exactDuplicates,0);
 assert.ok(summary.skillsWithAnimation<=summary.skills,'Fehlende Animationswerte dürfen nicht erfunden werden');
