@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { PARTNER_DATA, PARTNER_REPORT, PARTNER_EFFECT_SCHEMA_VERSION } from '../src/generated-partner-data.js';
 
-assert.equal(PARTNER_EFFECT_SCHEMA_VERSION,'2.3.0');
+assert.equal(PARTNER_EFFECT_SCHEMA_VERSION,'2.4.0');
 assert.equal(PARTNER_REPORT.duplicateMechanics,0,'Parser und Cargo dürfen dieselbe Partnermechanik nicht doppelt erzeugen');
 assert.ok(PARTNER_DATA.length>100,'Partnerdatenbasis ist unerwartet klein');
 
@@ -10,7 +10,7 @@ for(const row of PARTNER_DATA){
   for(const effect of row.effects||[]){
     for(const key of required)assert.ok(Object.hasOwn(effect,key),`${row.palName}: ${effect.type} ohne ${key}`);
     assert.ok(effect.id&&effect.palId&&effect.name,`${row.palName}: Partner-Effekt ohne stabile Identität`);
-    assert.ok(['stack','highestOnly','uniquePartnerSkill','nonStacking','conditional'].includes(effect.stackingRule),`${row.palName}: ungültige stackingRule ${effect.stackingRule}`);
+    assert.ok(['stack','highestOnly','uniquePartnerSkill','nonStacking'].includes(effect.stackingRule),`${row.palName}: ungültige stackingRule ${effect.stackingRule}`);
   }
   const keys=(row.effects||[]).map(effect=>JSON.stringify([effect.type,effect.element||null,effect.target||null]));
   assert.equal(new Set(keys).size,keys.length,`${row.palName}: doppelte kanonische Partnermechanik`);
