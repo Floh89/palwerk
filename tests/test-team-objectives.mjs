@@ -11,7 +11,7 @@ import { resolveSkill } from '../src/data/skills.js';
 import { TOWER_PROFILES } from '../src/encounter-overrides.js';
 import { optimizeSkillRotation, rotationOptimizationCacheSize } from '../src/optimizer/skill-rotations.js';
 import { passiveOptimizationCacheSize } from '../src/optimizer/passive-builds.js';
-import { optimizeTeam, TEAM_OBJECTIVES, switchUtility } from '../src/optimizer/engine.js';
+import { optimizeTeam, TEAM_OBJECTIVES, switchUtility, supportContribution, resolveStacking } from '../src/optimizer/engine.js';
 
 assert.ok(COMBAT_GRAPH.pals.length>200,'Combat Graph muss vor der Optimierung aufgebaut sein');
 assert.deepEqual(Object.keys(TEAM_OBJECTIVES),['practical','element','safest','speedrun']);
@@ -24,14 +24,30 @@ const complementarySwitch={rotation:[{element:'Feuer'}],palKnowledge:{elements:[
 assert.equal(switchUtility(activeSynthetic,redundantSwitch,encounter,'practical'),0,'Ein Reserve-Pal ohne zusätzliche Phasenabdeckung darf keinen erfundenen Nutzen erhalten');
 assert.ok(switchUtility(activeSynthetic,complementarySwitch,encounter,'practical')>0,'Ein echter Phasen-Counter darf Wechselnutzen erhalten');
 
+const stackingCarry={palKnowledge:{elements:['Elektro']}};
+const supportEffect={type:'pal_element_attack',activation:'in_party',element:'Elektro',target:'Elektro',valuesByRank:[15,17,20,24,30],stackingGroup:'pal_element_attack:Elektro',stackable:false,status:'community-tested',confidence:'high'};
+const sparkitLike={id:'sparkit-like',dexKey:'42:base',partner:{name:'Static Electricity'}};
+const secondSpecies={id:'other-electric-support',dexKey:'999:base',partner:{name:'Different Electric Aura'}};
+const sameSkillCopy={id:'sparkit-copy',dexKey:'42:copy',partner:{name:'Static Electricity'}};
+const contributionA=supportContribution(supportEffect,sparkitLike,stackingCarry,4,'practical');
+const contributionB=supportContribution(supportEffect,secondSpecies,stackingCarry,4,'practical');
+const contributionCopy=supportContribution(supportEffect,sameSkillCopy,stackingCarry,4,'practical');
+const differentSkills=resolveStacking([contributionA,contributionB]);
+assert.equal(differentSkills.applied.length,2,'Verschiedene Partnerfähigkeiten mit gleichem Effekt müssen in Palworld 1.0 gemeinsam wirken können');
+const sameSkill=resolveStacking([contributionA,contributionCopy]);
+assert.equal(sameSkill.applied.length,1,'Dieselbe nicht stapelbare Partnerfähigkeit darf nur einmal angewendet werden');
+
 const validateGlobalCarrySupportTeam=(result,label)=>{
   assert.equal(result.status,'ok',`${label} muss mit allen fangbaren Pals ein Team liefern: ${result.reason||''}`);
-  const practical=result.teams[0];
+  const practical=result.teams.find(team=>team.objective==='practical')||result.teams[0];
   assert.equal(practical.objective,'practical','Standardteam muss das praktische Carry-Support-Team sein');
   assert.equal(practical.members.length,5);
+  assert.equal(practical.members.filter(member=>member.estimatedDpsRange).length,1,`${label}: genau ein Pal darf aktiven Pal-DPS tragen`);
   assert.ok(practical.members.every(member=>member.profile?.stars===4),`${label}: globale Optimierung muss alle fünf Pals mit 4★-Referenzprofil bewerten`);
   assert.ok(practical.effectiveSupportSlots>=2,`${label}: das praktische Team braucht mehrere tatsächlich angewendete Supportslots`);
   assert.ok(practical.supportModel?.multiplier>1,`${label}: Supportgruppe muss den Haupt-Pal messbar verstärken`);
+  const ids=practical.members.map(member=>member.palKnowledge?.dexKey||member.pal?.key||member.pal?.name);
+  assert.equal(new Set(ids).size,ids.length,`${label}: eine Pal-Form darf nicht versehentlich doppelt als mehrere verschiedene Slots erscheinen`);
   const appliedKeys=new Set(practical.stacking.applied.map(item=>`${item.palId}:${item.type}:${item.group}`));
   for(const member of practical.members.slice(1)){
     for(const effect of member.suppressedEffects||[]){
@@ -39,6 +55,7 @@ const validateGlobalCarrySupportTeam=(result,label)=>{
       if(!appliedKeys.has(key))assert.ok(!(member.supportReasons||[]).some(reason=>reason.includes(effect.type)&&reason.includes(' · ')),`${label}: unterdrückter Effekt ${effect.type} darf nicht als aktive Support-Begründung erscheinen`);
     }
   }
+  return practical;
 };
 
 const zoe=TOWER_PROFILES.find(x=>x.id==='zoe-grizzbolt-normal');
@@ -50,7 +67,14 @@ assert.ok(zoeResult.teams[0].members.slice(1).some(member=>member.supportReasons
 const lilyHard=TOWER_PROFILES.find(x=>x.id==='lily-lyleen-hard');
 const lilyResult=optimizeTeam({activity:'tower',encounter:lilyHard,constraints:{ownedOnly:false}});
 validateGlobalCarrySupportTeam(lilyResult,'Lily & Lyleen Schwer');
-assert.equal(lilyResult.teams[0].members.filter(member=>member.estimatedDpsRange).length,1,'Auch Lily Schwer darf nur einen aktiven Pal-DPS haben');
+
+for(const profile of TOWER_PROFILES){
+  const towerResult=optimizeTeam({activity:'tower',encounter:profile,constraints:{ownedOnly:false}});
+  const practical=validateGlobalCarrySupportTeam(towerResult,`${profile.name} ${profile.difficulty}`);
+  assert.ok(practical.members.slice(1).some(member=>(member.appliedEffects||[]).length>0),`${profile.name} ${profile.difficulty}: mindestens ein Supporteffekt muss tatsächlich angewendet werden`);
+  const elementTeam=towerResult.teams.find(team=>team.objective==='element');
+  assert.ok(elementTeam&&Number.isFinite(elementTeam.elementAlignment),`${profile.name} ${profile.difficulty}: Elementteam braucht eine nachvollziehbare Counter-Ausrichtung`);
+}
 
 const neutralResult=optimizeTeam({activity:'normal_team',encounter:{id:'manual-neutral',name:'Bosskampf',elements:['Neutral']},constraints:{ownedOnly:false}});
 assert.equal(neutralResult.status,'ok',`Manuelles neutrales Bossziel muss ein Team liefern: ${neutralResult.reason||''}`);
@@ -93,6 +117,7 @@ for(const team of result.teams){
   assert.equal(team.members.filter(member=>member.estimatedDpsRange).length,1,'Nur der aktive Haupt-Pal darf eigenen Pal-DPS tragen');
   assert.ok(team.assumptions.some(text=>text.includes('Eigene Zielfunktion')),'Zielfunktion muss im Ergebnis nachvollziehbar sein');
   assert.ok(team.assumptions.some(text=>text.includes('4★')),'Globale Endgame-Annahme muss transparent sein');
+  assert.ok(team.assumptions.some(text=>text.includes('Partnerfähigkeit')),'1.0-Stackingregel muss transparent sein');
   assert.ok(Number.isFinite(team.objectiveScore));
   assert.ok(team.supportModel&&team.supportModel.multiplier>=1,'Team muss ein explizites Carry-Support-Modell besitzen');
   assert.ok(Number.isInteger(team.effectiveSupportSlots)&&team.effectiveSupportSlots>=1,'Wirksame Supportslots müssen ausgewiesen werden');
@@ -102,4 +127,4 @@ for(const team of result.teams){
 }
 const element=result.teams.find(team=>team.objective==='element');
 assert.ok(element.elementAlignment>=0,'Elementteam braucht eine explizite Phasen-/Counter-Ausrichtung');
-console.log(`Team-Zielfunktions-Tests bestanden. Optimizer ${coldMs.toFixed(0)} ms kalt / ${warmMs.toFixed(0)} ms warm.`);
+console.log(`Team-Zielfunktions-Tests bestanden. Alle ${TOWER_PROFILES.length} Towerprofile geprüft. Optimizer ${coldMs.toFixed(0)} ms kalt / ${warmMs.toFixed(0)} ms warm.`);
